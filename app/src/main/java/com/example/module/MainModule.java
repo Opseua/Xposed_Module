@@ -7,7 +7,7 @@ import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
 import android.util.Range;
 
-public class MainHook implements IXposedHookLoadPackage {
+public class MainModule implements IXposedHookLoadPackage {
     
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
