@@ -1,58 +1,51 @@
 package com.example.module;
 
-import android.util.Log;
+import java.lang.reflect.Method;
 
-import de.robv.android.xposed.IXposedHookLoadPackage;
-import de.robv.android.xposed.XC_MethodHook;
-import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
+import io.github.libxposed.api.XposedInterface;
+import io.github.libxposed.api.XposedModule;
 
-import static de.robv.android.xposed.XposedHelpers.findAndHookMethod;
-
-public class MainModule implements IXposedHookLoadPackage {
+public class MainModule extends XposedModule {
 
     private static final String TAG = "CameraWatcher";
     private static final String TARGET_PACKAGE = "de.weis.camera2probe";
 
-    static {
-        log("MÓDULO COMEÇOU A RODAR");
+    public MainModule(XposedInterface base, ModuleLoadedParam param) {
+        super(base, param);
+        log(TAG + ": MÓDULO COMEÇOU A RODAR");
     }
 
     @Override
-    public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
+    public void onPackageLoaded(PackageLoadedParam param) {
+        super.onPackageLoaded(param);
 
-        if (!lpparam.packageName.equals(TARGET_PACKAGE)) {
+        if (!param.getPackageName().equals(TARGET_PACKAGE)) {
             return;
         }
 
-        log("APP ALVO ABERTO: " + lpparam.packageName);
+        log(TAG + ": APP ALVO ABERTO: " + param.getPackageName());
 
         try {
-            findAndHookMethod(
+            Class<?> cameraManagerClass = Class.forName(
                     "android.hardware.camera2.CameraManager",
-                    lpparam.classLoader,
-                    "openCamera",
-                    "java.lang.String",
-                    "android.hardware.camera2.CameraDevice$StateCallback",
-                    "android.os.Handler",
-                    new XC_MethodHook() {
-                        @Override
-                        protected void afterHookedMethod(MethodHookParam param) {
-                            log("CÂMERA ABERTA NO APP ALVO (" + TARGET_PACKAGE + ")");
-                        }
-                    }
+                    false,
+                    param.getClassLoader()
             );
 
-            log("Hook de CameraManager.openCamera registrado com sucesso em " + TARGET_PACKAGE);
+            for (Method method : cameraManagerClass.getDeclaredMethods()) {
+                if (method.getName().equals("openCamera")) {
+                    hook(method).intercept(chain -> {
+                        Object result = chain.proceed();
+                        log(TAG + ": CÂMERA ABERTA NO APP ALVO (" + TARGET_PACKAGE + ")");
+                        return result;
+                    });
+                }
+            }
+
+            log(TAG + ": Hook de CameraManager.openCamera registrado com sucesso em " + TARGET_PACKAGE);
 
         } catch (Throwable t) {
-            log("ERRO ao registrar hook: " + t);
+            log(TAG + ": ERRO ao registrar hook: " + t);
         }
-    }
-
-    private static void log(String message) {
-        String fullMessage = "[" + TAG + "] " + message;
-        XposedBridge.log(fullMessage);
-        Log.d(TAG, message);
     }
 }
