@@ -1,40 +1,58 @@
-package com.seumodulo.zoom; // Mantenha o pacote original do template aqui
+package com.example.module;
+
+import android.util.Log;
 
 import de.robv.android.xposed.IXposedHookLoadPackage;
 import de.robv.android.xposed.XC_MethodHook;
 import de.robv.android.xposed.XposedBridge;
-import de.robv.android.xposed.XposedHelpers;
 import de.robv.android.xposed.callbacks.XC_LoadPackage.LoadPackageParam;
-import android.util.Range;
+
+import static de.robv.android.xposed.XposedHelpers.findAndHookMethod;
 
 public class MainModule implements IXposedHookLoadPackage {
-    
+
+    private static final String TAG = "CameraWatcher";
+    private static final String TARGET_PACKAGE = "de.weis.camera2probe";
+
+    static {
+        log("MÓDULO COMEÇOU A RODAR");
+    }
+
     @Override
     public void handleLoadPackage(LoadPackageParam lpparam) throws Throwable {
-        
-        // Filtro para aplicar apenas no app desejado (substitua pelo pacote correto)
-        if (!lpparam.packageName.equals("com.nome.do.app")) {
+
+        if (!lpparam.packageName.equals(TARGET_PACKAGE)) {
             return;
         }
 
-        XposedHelpers.findAndHookMethod(
-            "android.hardware.camera2.CameraCharacteristics",
-            lpparam.classLoader,
-            "get",
-            "android.hardware.camera2.CameraCharacteristics$Key",
-            new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    Object key = param.args[0];
-                    if (key != null) {
-                        String keyName = (String) XposedHelpers.callMethod(key, "getName");
-                        if ("android.control.zoomRatioRange".equals(keyName)) {
-                            Range<Float> newRange = new Range<>(0.5f, 8.0f);
-                            param.setResult(newRange);
+        log("APP ALVO ABERTO: " + lpparam.packageName);
+
+        try {
+            findAndHookMethod(
+                    "android.hardware.camera2.CameraManager",
+                    lpparam.classLoader,
+                    "openCamera",
+                    "java.lang.String",
+                    "android.hardware.camera2.CameraDevice$StateCallback",
+                    "android.os.Handler",
+                    new XC_MethodHook() {
+                        @Override
+                        protected void afterHookedMethod(MethodHookParam param) {
+                            log("CÂMERA ABERTA NO APP ALVO (" + TARGET_PACKAGE + ")");
                         }
                     }
-                }
-            }
-        );
+            );
+
+            log("Hook de CameraManager.openCamera registrado com sucesso em " + TARGET_PACKAGE);
+
+        } catch (Throwable t) {
+            log("ERRO ao registrar hook: " + t);
+        }
+    }
+
+    private static void log(String message) {
+        String fullMessage = "[" + TAG + "] " + message;
+        XposedBridge.log(fullMessage);
+        Log.d(TAG, message);
     }
 }
