@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">Xposed Module Template</string>
-    <string name="xposed_description">This is an Xposed module template based on libxposed.</string>
+    <string name="app_name">Camera Watcher</string>
+    <string name="xposed_description">Loga no LSPosed quando o app alvo abre a câmera.</string>
 </resources>
