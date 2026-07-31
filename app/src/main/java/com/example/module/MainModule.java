@@ -22,6 +22,8 @@ public class MainModule extends XposedModule {
 
         String packageName = param.getPackageName();
 
+        Log.i(TAG, "MODULO: APP ALVO " + packageName + " ABERTO");
+
         try {
             Class<?> cameraManagerClass = Class.forName(
                     "android.hardware.camera2.CameraManager",
@@ -33,7 +35,7 @@ public class MainModule extends XposedModule {
                 if (method.getName().equals("openCamera")) {
                     hook(method).intercept(chain -> {
                         Object result = chain.proceed();
-                        Log.i(TAG, "MODULO: " + packageName + " USOU A CÂMERA");
+                        Log.i(TAG, "MODULO: APP ALVO " + packageName + " USOU A CAMERA");
                         return result;
                     });
                 }
@@ -41,6 +43,28 @@ public class MainModule extends XposedModule {
 
         } catch (Throwable t) {
             Log.e(TAG, "MODULO: erro ao hookar em " + packageName + ": " + t, t);
+        }
+
+        try {
+            Class<?> activityThreadClass = Class.forName(
+                    "android.app.ActivityThread",
+                    false,
+                    param.getClassLoader()
+            );
+
+            for (Method method : activityThreadClass.getDeclaredMethods()) {
+                if (method.getName().equals("handleDestroyActivity")
+                        || method.getName().equals("performDestroyActivity")) {
+                    hook(method).intercept(chain -> {
+                        Object result = chain.proceed();
+                        Log.i(TAG, "MODULO: APP ALVO " + packageName + " FECHADO");
+                        return result;
+                    });
+                }
+            }
+
+        } catch (Throwable t) {
+            Log.e(TAG, "MODULO: erro ao hookar fechamento em " + packageName + ": " + t, t);
         }
     }
 }
