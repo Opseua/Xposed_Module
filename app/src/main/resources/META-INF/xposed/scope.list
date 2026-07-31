@@ -1,10 +1,6 @@
 # Scope list, one package name per line
 # Adicione aqui qualquer app que você queira poder selecionar no Vector
 de.weis.camera2probe
-com.android.camera
-com.google.android.GoogleCamera
-com.whatsapp
-com.instagram.android
-com.snapchat.android
-com.zhiliaoapp.musically
-org.telegram.messenger
+com.bakerdata.minute
+
+
