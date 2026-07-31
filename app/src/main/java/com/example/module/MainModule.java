@@ -32,7 +32,49 @@ public class MainModule extends XposedModule {
         String packageName = param.getPackageName();
         Log.i(TAG, "MODULO: APP ALVO " + packageName + " INICIOU");
 
+        hookSystemProperties(param, packageName);
         hookCameraCharacteristics(param, packageName);
+    }
+
+    // 📱 Hook para Spoof de Dispositivo (Galaxy S23)
+    private void hookSystemProperties(PackageReadyParam param, String packageName) {
+        try {
+            Class<?> systemPropClass = Class.forName(
+                    "android.os.SystemProperties",
+                    false,
+                    param.getClassLoader()
+            );
+
+            for (Method method : systemPropClass.getDeclaredMethods()) {
+                if (method.getName().equals("get") && method.getParameterTypes().length >= 1) {
+                    hook(method).intercept(chain -> {
+                        String propKey = (String) chain.getArgs()[0];
+                        Object result = chain.proceed();
+                        
+                        String spoofedResult = null;
+                        
+                        if ("ro.product.manufacturer".equals(propKey) || "ro.product.brand".equals(propKey)) {
+                            spoofedResult = "samsung";
+                        } else if ("ro.product.model".equals(propKey)) {
+                            spoofedResult = "SM-S911B"; // Modelo do Galaxy S23 Global
+                        } else if ("ro.product.device".equals(propKey) || "ro.product.name".equals(propKey)) {
+                            spoofedResult = "dm1q"; // Codinome do Galaxy S23
+                        } else if ("ro.miui.region".equals(propKey)) {
+                            spoofedResult = ""; // Esconde a existência da MIUI
+                        }
+
+                        if (spoofedResult != null) {
+                            escreverLog(packageName, "SYSTEM_PROP: " + propKey + " = " + result + " -> SPOOFADO PARA: " + spoofedResult);
+                            return spoofedResult;
+                        }
+                        
+                        return result;
+                    });
+                }
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "MODULO: erro ao hookar SystemProperties em " + packageName, t);
+        }
     }
 
     // 📸 Hook para capturar e alterar a Câmera
@@ -47,7 +89,7 @@ public class MainModule extends XposedModule {
             for (Method method : cameraCharacteristicsClass.getDeclaredMethods()) {
                 if (method.getName().equals("get") && method.getParameterTypes().length == 1) {
                     hook(method).intercept(chain -> {
-                        Object arg = chain.getArgs().get(0);
+                        Object arg = chain.getArgs()[0];
 
                         if (arg instanceof CameraCharacteristics.Key) {
                             CameraCharacteristics.Key<?> key = (CameraCharacteristics.Key<?>) arg;
@@ -121,16 +163,19 @@ public class MainModule extends XposedModule {
         Log.i(TAG, linhaLog.trim());
 
         try {
-            String tempDir = System.getProperty("java.io.tmpdir");
-            if (tempDir != null) {
-                File arquivoLog = new File(tempDir, "camera_app_logs.txt");
-                FileWriter writer = new FileWriter(arquivoLog, true);
-                writer.append(linhaLog);
-                writer.flush();
-                writer.close();
+            // Tenta forçar de forma absoluta a pasta de cache do aplicativo
+            File pastaCache = new File("/data/user/0/" + packageName + "/cache");
+            if (!pastaCache.exists()) {
+                pastaCache.mkdirs(); // Cria se não existir (evita erro em apps limpos)
             }
+
+            File arquivoLog = new File(pastaCache, "camera_app_logs.txt");
+            FileWriter writer = new FileWriter(arquivoLog, true);
+            writer.append(linhaLog);
+            writer.flush();
+            writer.close();
         } catch (Exception e) {
-            Log.e(TAG, "MODULO: Erro ao escrever no arquivo txt temporário: " + e.getMessage());
+            Log.e(TAG, "MODULO: Erro ao escrever txt (Possível processo webview/isolado): " + e.getMessage());
         }
     }
 }
