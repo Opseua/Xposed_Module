@@ -1,7 +1,6 @@
 package com.example.module;
 
 import android.hardware.camera2.CameraCharacteristics;
-import android.os.Environment;
 import android.util.Log;
 import android.util.Range;
 import android.util.SizeF;
@@ -34,7 +33,6 @@ public class MainModule extends XposedModule {
         Log.i(TAG, "MODULO: APP ALVO " + packageName + " INICIOU");
 
         hookCameraCharacteristics(param, packageName);
-        hookSystemProperties(param, packageName);
     }
 
     // 📸 Hook para capturar e alterar a Câmera
@@ -57,47 +55,52 @@ public class MainModule extends XposedModule {
                             
                             Object result = chain.proceed();
                             
-                            // 🚀 INÍCIO DO SPOOFING DE CÂMERA (Galaxy S21)
+                            // 🚀 INÍCIO DO SPOOFING PARA EGO_CAPTURE
                             
-                            if ("android.control.zoomRatioRange".equals(keyName)) {
-                                Range<Float> spoof = new Range<>(0.5f, 10.0f);
-                                escreverLog(packageName, "CAMERA_KEY: " + keyName + " = " + formatarValor(result) + " -> SPOOF: " + spoof);
-                                return spoof;
-                            }
-                            
-                            if ("android.request.availableCapabilities".equals(keyName)) {
-                                // Adiciona capacidades Premium (11 = Múltiplas Câmeras, 3 = RAW)
-                                int[] spoof = new int[] {0, 1, 2, 3, 4, 5, 6, 8, 9, 11};
-                                escreverLog(packageName, "CAMERA_KEY: " + keyName + " = " + formatarValor(result) + " -> SPOOF: " + formatarValor(spoof));
-                                return spoof;
-                            }
-                            
-                            if ("android.control.aeAvailableTargetFpsRanges".equals(keyName)) {
-                                // Suporte a 60 FPS
-                                @SuppressWarnings("unchecked")
-                                Range<Integer>[] spoof = new Range[] {
-                                    new Range<>(15, 30), new Range<>(30, 30), new Range<>(30, 60), new Range<>(60, 60)
-                                };
-                                escreverLog(packageName, "CAMERA_KEY: " + keyName + " = " + formatarValor(result) + " -> SPOOF: " + formatarValor(spoof));
-                                return spoof;
-                            }
-                            
+                            // 1. Simula uma câmera Ultra-Wide forçando um FOV de ~144°
                             if ("android.sensor.info.physicalSize".equals(keyName)) {
-                                // Tamanho de um sensor grande topo de linha (aprox. 1/1.7 polegadas)
-                                SizeF spoof = new SizeF(7.6f, 5.7f);
-                                escreverLog(packageName, "CAMERA_KEY: " + keyName + " = " + formatarValor(result) + " -> SPOOF: " + spoof);
+                                SizeF spoof = new SizeF(7.6f, 5.7f); // Sensor grande
+                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + spoof);
                                 return spoof;
                             }
                             
                             if ("android.lens.info.availableFocalLengths".equals(keyName)) {
-                                // Múltiplas distâncias focais (Ultrawide, Wide, Telephoto)
-                                float[] spoof = new float[] {1.8f, 5.4f, 7.1f};
-                                escreverLog(packageName, "CAMERA_KEY: " + keyName + " = " + formatarValor(result) + " -> SPOOF: " + formatarValor(spoof));
+                                float[] spoof = new float[] { 1.5f }; // Lente super curta
+                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + Arrays.toString(spoof));
                                 return spoof;
                             }
 
-                            // Loga o valor original caso não tenha sido falsificado
-                            escreverLog(packageName, "CAMERA_KEY: " + keyName + " = " + formatarValor(result));
+                            // 2. Força o Timestamp Source para REALTIME (1)
+                            if ("android.sensor.info.timestampSource".equals(keyName)) {
+                                Integer spoof = 1;
+                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + spoof);
+                                return spoof;
+                            }
+
+                            // 3. Zoom padrão
+                            if ("android.control.zoomRatioRange".equals(keyName)) {
+                                Range<Float> spoof = new Range<>(0.5f, 10.0f);
+                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + spoof);
+                                return spoof;
+                            }
+                            
+                            // Capacidades premium de câmera
+                            if ("android.request.availableCapabilities".equals(keyName)) {
+                                int[] spoof = new int[] {0, 1, 2, 3, 4, 5, 6, 8, 9, 11};
+                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + Arrays.toString(spoof));
+                                return spoof;
+                            }
+                            
+                            // Suporte a 30 FPS rígido conforme exigido pelo app
+                            if ("android.control.aeAvailableTargetFpsRanges".equals(keyName)) {
+                                @SuppressWarnings("unchecked")
+                                Range<Integer>[] spoof = new Range[] {
+                                    new Range<>(15, 30), new Range<>(30, 30)
+                                };
+                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + Arrays.toString(spoof));
+                                return spoof;
+                            }
+
                             return result;
                         }
 
@@ -110,76 +113,10 @@ public class MainModule extends XposedModule {
         }
     }
 
-    // 📱 Hook para alterar modelo/fabricante do aparelho (Galaxy S21)
-    private void hookSystemProperties(PackageReadyParam param, String packageName) {
-        try {
-            Class<?> systemPropClass = Class.forName(
-                    "android.os.SystemProperties",
-                    false,
-                    param.getClassLoader()
-            );
-
-            for (Method method : systemPropClass.getDeclaredMethods()) {
-                if (method.getName().equals("get") && method.getParameterTypes().length >= 1) {
-                    hook(method).intercept(chain -> {
-                        String propKey = (String) chain.getArgs().get(0);
-                        Object result = chain.proceed();
-                        
-                        // 🚀 INÍCIO DO SPOOFING DE APARELHO
-                        String spoofedResult = null;
-                        
-                        if ("ro.product.manufacturer".equals(propKey) || "ro.product.brand".equals(propKey)) {
-                            spoofedResult = "samsung";
-                        } else if ("ro.product.model".equals(propKey)) {
-                            spoofedResult = "SM-G991B"; // Modelo do S21 Global 5G
-                        } else if ("ro.product.device".equals(propKey) || "ro.product.name".equals(propKey)) {
-                            spoofedResult = "o1s"; // Codinome do S21
-                        } else if ("ro.miui.region".equals(propKey)) {
-                            spoofedResult = ""; // Esconde a existência da MIUI
-                        }
-
-                        // Se falsificamos, retornamos o novo valor
-                        if (spoofedResult != null) {
-                            escreverLog(packageName, "SYSTEM_PROP: " + propKey + " = " + result + " -> SPOOF: " + spoofedResult);
-                            return spoofedResult;
-                        }
-                        
-                        // Log normal para as outras propriedades
-                        if (propKey != null && (propKey.startsWith("ro.") || propKey.startsWith("hw."))) {
-                            escreverLog(packageName, "SYSTEM_PROP: " + propKey + " = " + result);
-                        }
-                        
-                        return result;
-                    });
-                }
-            }
-        } catch (Throwable t) {
-            Log.e(TAG, "MODULO: erro ao hookar SystemProperties em " + packageName, t);
-        }
-    }
-
-    // 🛠️ Converte os arrays da câmera em texto legível para o log
-    private String formatarValor(Object obj) {
-        if (obj == null) return "null";
-        if (!obj.getClass().isArray()) return obj.toString();
-
-        if (obj instanceof int[]) return Arrays.toString((int[]) obj);
-        if (obj instanceof float[]) return Arrays.toString((float[]) obj);
-        if (obj instanceof double[]) return Arrays.toString((double[]) obj);
-        if (obj instanceof long[]) return Arrays.toString((long[]) obj);
-        if (obj instanceof byte[]) return Arrays.toString((byte[]) obj);
-        if (obj instanceof boolean[]) return Arrays.toString((boolean[]) obj);
-        if (obj instanceof char[]) return Arrays.toString((char[]) obj);
-        if (obj instanceof short[]) return Arrays.toString((short[]) obj);
-        if (obj instanceof Range[]) return Arrays.toString((Range[]) obj);
-
-        return Arrays.deepToString((Object[]) obj);
-    }
-
     // 💾 Função de escrita de arquivo e Logcat
     private void escreverLog(String packageName, String consulta) {
         String timestamp = new SimpleDateFormat("HH:mm:ss:SSS", Locale.getDefault()).format(new Date());
-        String linhaLog = timestamp + " ___" + packageName + "___ CONSULTOU " + consulta + "\n";
+        String linhaLog = timestamp + " ___" + packageName + "___ " + consulta + "\n";
         
         Log.i(TAG, linhaLog.trim());
 
