@@ -1,8 +1,9 @@
 package com.example.module;
 
+import android.util.Log;
+
 import java.lang.reflect.Method;
 
-import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 
 public class MainModule extends XposedModule {
@@ -13,7 +14,7 @@ public class MainModule extends XposedModule {
     @Override
     public void onModuleLoaded(ModuleLoadedParam param) {
         super.onModuleLoaded(param);
-        log(XposedInterface.LOG_PRIORITY_INFO, TAG, "MÓDULO COMEÇOU A RODAR");
+        Log.i(TAG, "MÓDULO COMEÇOU A RODAR");
     }
 
     @Override
@@ -24,7 +25,7 @@ public class MainModule extends XposedModule {
             return;
         }
 
-        log(XposedInterface.LOG_PRIORITY_INFO, TAG, "APP ALVO ABERTO: " + param.getPackageName());
+        Log.i(TAG, "APP ALVO ABERTO: " + param.getPackageName());
 
         try {
             Class<?> cameraManagerClass = Class.forName(
@@ -37,18 +38,16 @@ public class MainModule extends XposedModule {
                 if (method.getName().equals("openCamera")) {
                     hook(method).intercept(chain -> {
                         Object result = chain.proceed();
-                        log(XposedInterface.LOG_PRIORITY_INFO, TAG,
-                                "CÂMERA ABERTA NO APP ALVO (" + TARGET_PACKAGE + ")");
+                        Log.i(TAG, "CÂMERA ABERTA NO APP ALVO (" + TARGET_PACKAGE + ")");
                         return result;
                     });
                 }
             }
 
-            log(XposedInterface.LOG_PRIORITY_INFO, TAG,
-                    "Hook de CameraManager.openCamera registrado com sucesso em " + TARGET_PACKAGE);
+            Log.i(TAG, "Hook de CameraManager.openCamera registrado com sucesso em " + TARGET_PACKAGE);
 
         } catch (Throwable t) {
-            log(XposedInterface.LOG_PRIORITY_ERROR, TAG, "ERRO ao registrar hook: " + t, t);
+            Log.e(TAG, "ERRO ao registrar hook: " + t, t);
         }
     }
 }
