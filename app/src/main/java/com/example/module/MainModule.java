@@ -2,8 +2,6 @@ package com.example.module;
 
 import android.hardware.camera2.CameraCharacteristics;
 import android.util.Log;
-import android.util.Range;
-import android.util.SizeF;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -36,7 +34,7 @@ public class MainModule extends XposedModule {
         hookCameraCharacteristics(param, packageName);
     }
 
-    // 📱 Hook para Spoof de Dispositivo (Galaxy S23)
+    // 📱 Hook para ler Propriedades do Sistema
     private void hookSystemProperties(PackageReadyParam param, String packageName) {
         try {
             Class<?> systemPropClass = Class.forName(
@@ -49,23 +47,13 @@ public class MainModule extends XposedModule {
                 if (method.getName().equals("get") && method.getParameterTypes().length >= 1) {
                     hook(method).intercept(chain -> {
                         String propKey = (String) chain.getArgs().get(0);
+                        
+                        // Executa a chamada original para obter a resposta real do sistema
                         Object result = chain.proceed();
                         
-                        String spoofedResult = null;
-                        
-                        if ("ro.product.manufacturer".equals(propKey) || "ro.product.brand".equals(propKey)) {
-                            spoofedResult = "samsung";
-                        } else if ("ro.product.model".equals(propKey)) {
-                            spoofedResult = "SM-S911B"; // Modelo do Galaxy S23 Global
-                        } else if ("ro.product.device".equals(propKey) || "ro.product.name".equals(propKey)) {
-                            spoofedResult = "dm1q"; // Codinome do Galaxy S23
-                        } else if ("ro.miui.region".equals(propKey)) {
-                            spoofedResult = ""; // Esconde a existência da MIUI
-                        }
-
-                        if (spoofedResult != null) {
-                            escreverLog(packageName, "SYSTEM_PROP: " + propKey + " = " + result + " -> SPOOFADO PARA: " + spoofedResult);
-                            return spoofedResult;
+                        // Registra apenas as consultas relevantes para não poluir o log
+                        if (propKey != null && (propKey.startsWith("ro.") || propKey.startsWith("hw."))) {
+                            escreverLog(packageName, propKey + " | " + formatarValor(result));
                         }
                         
                         return result;
@@ -77,7 +65,7 @@ public class MainModule extends XposedModule {
         }
     }
 
-    // 📸 Hook para capturar e alterar a Câmera
+    // 📸 Hook para ler Características da Câmera
     private void hookCameraCharacteristics(PackageReadyParam param, String packageName) {
         try {
             Class<?> cameraCharacteristicsClass = Class.forName(
@@ -95,54 +83,12 @@ public class MainModule extends XposedModule {
                             CameraCharacteristics.Key<?> key = (CameraCharacteristics.Key<?>) arg;
                             String keyName = key.getName();
                             
+                            // Executa o método original para ler o valor real da câmera
                             Object result = chain.proceed();
                             
-                            // 🚀 INÍCIO DO SPOOFING PARA EGO_CAPTURE
+                            // Registra o que foi consultado e o que o aparelho respondeu
+                            escreverLog(packageName, keyName + " | " + formatarValor(result));
                             
-                            // 1. Simula uma câmera Ultra-Wide forçando um FOV de ~144°
-                            if ("android.sensor.info.physicalSize".equals(keyName)) {
-                                SizeF spoof = new SizeF(7.6f, 5.7f); // Sensor grande
-                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + spoof);
-                                return spoof;
-                            }
-                            
-                            if ("android.lens.info.availableFocalLengths".equals(keyName)) {
-                                float[] spoof = new float[] { 1.5f }; // Lente super curta
-                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + Arrays.toString(spoof));
-                                return spoof;
-                            }
-
-                            // 2. Força o Timestamp Source para REALTIME (1)
-                            if ("android.sensor.info.timestampSource".equals(keyName)) {
-                                Integer spoof = 1;
-                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + spoof);
-                                return spoof;
-                            }
-
-                            // 3. Zoom padrão
-                            if ("android.control.zoomRatioRange".equals(keyName)) {
-                                Range<Float> spoof = new Range<>(0.5f, 10.0f);
-                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + spoof);
-                                return spoof;
-                            }
-                            
-                            // Capacidades premium de câmera
-                            if ("android.request.availableCapabilities".equals(keyName)) {
-                                int[] spoof = new int[] {0, 1, 2, 3, 4, 5, 6, 8, 9, 11};
-                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + Arrays.toString(spoof));
-                                return spoof;
-                            }
-                            
-                            // Suporte a 30 FPS rígido conforme exigido pelo app
-                            if ("android.control.aeAvailableTargetFpsRanges".equals(keyName)) {
-                                @SuppressWarnings("unchecked")
-                                Range<Integer>[] spoof = new Range[] {
-                                    new Range<>(15, 30), new Range<>(30, 30)
-                                };
-                                escreverLog(packageName, "CAMERA: " + keyName + " -> " + Arrays.toString(spoof));
-                                return spoof;
-                            }
-
                             return result;
                         }
 
@@ -155,10 +101,29 @@ public class MainModule extends XposedModule {
         }
     }
 
+    // 🛠️ Converte os arrays nativos em texto legível
+    private String formatarValor(Object obj) {
+        if (obj == null) return "null";
+        if (!obj.getClass().isArray()) return obj.toString();
+
+        if (obj instanceof int[]) return Arrays.toString((int[]) obj);
+        if (obj instanceof float[]) return Arrays.toString((float[]) obj);
+        if (obj instanceof double[]) return Arrays.toString((double[]) obj);
+        if (obj instanceof long[]) return Arrays.toString((long[]) obj);
+        if (obj instanceof byte[]) return Arrays.toString((byte[]) obj);
+        if (obj instanceof boolean[]) return Arrays.toString((boolean[]) obj);
+        if (obj instanceof char[]) return Arrays.toString((char[]) obj);
+        if (obj instanceof short[]) return Arrays.toString((short[]) obj);
+
+        return Arrays.deepToString((Object[]) obj);
+    }
+
     // 💾 Função de escrita de arquivo e Logcat
-    private void escreverLog(String packageName, String consulta) {
+    private void escreverLog(String packageName, String consultaEValor) {
         String timestamp = new SimpleDateFormat("HH:mm:ss:SSS", Locale.getDefault()).format(new Date());
-        String linhaLog = timestamp + " ___" + packageName + "___ " + consulta + "\n";
+        
+        // Formato final: HH:mm:ss:SSS: O_QUE_FOI_CONSULTADO | VALOR_ORIGINAL_RETORNADO
+        String linhaLog = timestamp + ": " + consultaEValor + "\n";
         
         Log.i(TAG, linhaLog.trim());
 
@@ -166,7 +131,7 @@ public class MainModule extends XposedModule {
             // Tenta forçar de forma absoluta a pasta de cache do aplicativo
             File pastaCache = new File("/data/user/0/" + packageName + "/cache");
             if (!pastaCache.exists()) {
-                pastaCache.mkdirs(); // Cria se não existir (evita erro em apps limpos)
+                pastaCache.mkdirs(); 
             }
 
             File arquivoLog = new File(pastaCache, "camera_app_logs.txt");
@@ -175,7 +140,7 @@ public class MainModule extends XposedModule {
             writer.flush();
             writer.close();
         } catch (Exception e) {
-            Log.e(TAG, "MODULO: Erro ao escrever txt (Possível processo webview/isolado): " + e.getMessage());
+            Log.e(TAG, "MODULO: Erro ao escrever txt em " + packageName + ": " + e.getMessage());
         }
     }
 }
