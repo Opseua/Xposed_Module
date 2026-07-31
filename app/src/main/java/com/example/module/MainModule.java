@@ -48,7 +48,7 @@ public class MainModule extends XposedModule {
             for (Method method : systemPropClass.getDeclaredMethods()) {
                 if (method.getName().equals("get") && method.getParameterTypes().length >= 1) {
                     hook(method).intercept(chain -> {
-                        String propKey = (String) chain.getArgs()[0];
+                        String propKey = (String) chain.getArgs().get(0);
                         Object result = chain.proceed();
                         
                         String spoofedResult = null;
@@ -89,7 +89,7 @@ public class MainModule extends XposedModule {
             for (Method method : cameraCharacteristicsClass.getDeclaredMethods()) {
                 if (method.getName().equals("get") && method.getParameterTypes().length == 1) {
                     hook(method).intercept(chain -> {
-                        Object arg = chain.getArgs()[0];
+                        Object arg = chain.getArgs().get(0);
 
                         if (arg instanceof CameraCharacteristics.Key) {
                             CameraCharacteristics.Key<?> key = (CameraCharacteristics.Key<?>) arg;
