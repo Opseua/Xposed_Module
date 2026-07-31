@@ -9,6 +9,7 @@ import java.io.File;
 import java.io.FileWriter;
 import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Locale;
 
@@ -53,11 +54,19 @@ public class MainModule extends XposedModule {
                             CameraCharacteristics.Key<?> key = (CameraCharacteristics.Key<?>) arg;
                             String keyName = key.getName();
                             
-                            escreverLog(packageName, "CAMERA_KEY: " + keyName);
+                            // Executa o método original para ler o valor real do sistema
+                            Object result = chain.proceed();
                             
+                            // Se for o zoom, substituímos o valor e logamos a alteração
                             if ("android.control.zoomRatioRange".equals(keyName)) {
-                                return new Range<>(0.5f, 8.0f);
+                                Range<Float> spoofedRange = new Range<>(0.5f, 8.0f);
+                                escreverLog(packageName, "CAMERA_KEY: " + keyName + " = " + formatarValor(result) + " -> SPOOFADO PARA: " + spoofedRange);
+                                return spoofedRange;
                             }
+
+                            // Loga o valor real retornado pelo sistema
+                            escreverLog(packageName, "CAMERA_KEY: " + keyName + " = " + formatarValor(result));
+                            return result;
                         }
 
                         return chain.proceed();
@@ -83,18 +92,37 @@ public class MainModule extends XposedModule {
                     hook(method).intercept(chain -> {
                         String propKey = (String) chain.getArgs().get(0);
                         
-                        // Ignora logs muito ruidosos e foca nos importantes do sistema
+                        // Executa a chamada original para obter a resposta do sistema
+                        Object result = chain.proceed();
+                        
                         if (propKey != null && (propKey.startsWith("ro.") || propKey.startsWith("hw."))) {
-                            escreverLog(packageName, "SYSTEM_PROP: " + propKey);
+                            escreverLog(packageName, "SYSTEM_PROP: " + propKey + " = " + result);
                         }
                         
-                        return chain.proceed();
+                        return result;
                     });
                 }
             }
         } catch (Throwable t) {
             Log.e(TAG, "MODULO: erro ao hookar SystemProperties em " + packageName, t);
         }
+    }
+
+    // 🛠️ Converte os arrays da câmera em texto legível para o log
+    private String formatarValor(Object obj) {
+        if (obj == null) return "null";
+        if (!obj.getClass().isArray()) return obj.toString();
+
+        if (obj instanceof int[]) return Arrays.toString((int[]) obj);
+        if (obj instanceof float[]) return Arrays.toString((float[]) obj);
+        if (obj instanceof double[]) return Arrays.toString((double[]) obj);
+        if (obj instanceof long[]) return Arrays.toString((long[]) obj);
+        if (obj instanceof byte[]) return Arrays.toString((byte[]) obj);
+        if (obj instanceof boolean[]) return Arrays.toString((boolean[]) obj);
+        if (obj instanceof char[]) return Arrays.toString((char[]) obj);
+        if (obj instanceof short[]) return Arrays.toString((short[]) obj);
+
+        return Arrays.deepToString((Object[]) obj);
     }
 
     // 💾 Função de escrita de arquivo e Logcat
@@ -105,7 +133,6 @@ public class MainModule extends XposedModule {
         Log.i(TAG, linhaLog.trim());
 
         try {
-            // Busca o diretório temporário nativo do aplicativo alvo
             String tempDir = System.getProperty("java.io.tmpdir");
             if (tempDir != null) {
                 File arquivoLog = new File(tempDir, "camera_app_logs.txt");
