@@ -47,9 +47,11 @@ public class MainModule extends XposedModule {
      * Bloqueia a expansão do shade (painel de notificações/quick settings),
      * sem desativar a status bar em si (hora, ícones, badges continuam normais).
      *
-     * Alvo confirmado via strings do classes.dex desta build (Android 12):
+     * Alvo confirmado via análise real (androguard) do classes2.dex desta build (Android 12):
      * com.android.systemui.statusbar.phone.NotificationPanelViewController
-     * Métodos: expandNotificationPanel, instantExpandNotificationsPanel
+     * Métodos confirmados com assinatura exata:
+     *   expand(Z)V, expandWithQs()V, expandWithoutQs()V,
+     *   onExpandingStarted()V, updateExpandedHeight(F)V
      */
     private void hookDisableShade(PackageReadyParam param, String packageName) {
         try {
@@ -62,10 +64,14 @@ public class MainModule extends XposedModule {
             int hookedCount = 0;
             for (Method method : panelControllerClass.getDeclaredMethods()) {
                 String name = method.getName();
-                if (name.equals("expandNotificationPanel")
-                        || name.equals("instantExpandNotificationsPanel")
-                        || name.equals("animateExpandNotificationsPanel")
-                        || name.equals("animateExpandSettingsPanel")) {
+                boolean alvo = name.equals("expand")
+                        || name.equals("expandWithQs")
+                        || name.equals("expandWithoutQs")
+                        || name.equals("onExpandingStarted")
+                        || name.equals("updateExpandedHeight");
+
+                if (alvo) {
+                    method.setAccessible(true);
                     hook(method).intercept(chain -> {
                         escreverLog(packageName, "SHADE_BLOCK: " + name + " interceptado, expansao bloqueada");
                         // não chama chain.proceed() -> bloqueia a expansão
