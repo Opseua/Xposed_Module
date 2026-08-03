@@ -67,8 +67,7 @@ public class MainModule extends XposedModule {
                 boolean alvo = name.equals("expand")
                         || name.equals("expandWithQs")
                         || name.equals("expandWithoutQs")
-                        || name.equals("onExpandingStarted")
-                        || name.equals("updateExpandedHeight");
+                        || name.equals("onExpandingStarted");
 
                 if (alvo) {
                     method.setAccessible(true);
