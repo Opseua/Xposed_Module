@@ -33,11 +33,6 @@ public class MainModule extends XposedModule {
         String packageName = param.getPackageName();
         Log.i(TAG, "MODULO: APP ALVO " + packageName + " INICIOU");
 
-        if ("com.android.systemui".equals(packageName)) {
-            hookDisableShade(param, packageName);
-            return;
-        }
-
         spoofBuildProperties(packageName);
         hookSystemProperties(param, packageName);
         hookCameraCharacteristics(param, packageName);

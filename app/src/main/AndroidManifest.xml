@@ -7,6 +7,29 @@
         android:label="@string/app_name"
         android:description="@string/xposed_description"
         android:supportsRtl="true"
-        tools:ignore="AllowBackup,MissingApplicationIcon" />
+        tools:ignore="AllowBackup,MissingApplicationIcon">
+
+        <receiver
+            android:name=".ShadeAdminReceiver"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_receiver" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".ShadeControlReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.example.module.ACTION_DISABLE_SHADE" />
+                <action android:name="com.example.module.ACTION_ENABLE_SHADE" />
+            </intent-filter>
+        </receiver>
+
+    </application>
 
 </manifest>
