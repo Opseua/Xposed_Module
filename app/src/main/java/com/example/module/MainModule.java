@@ -33,9 +33,53 @@ public class MainModule extends XposedModule {
         String packageName = param.getPackageName();
         Log.i(TAG, "MODULO: APP ALVO " + packageName + " INICIOU");
 
+        if ("com.android.systemui".equals(packageName)) {
+            hookDisableShade(param, packageName);
+            return;
+        }
+
         spoofBuildProperties(packageName);
         hookSystemProperties(param, packageName);
         hookCameraCharacteristics(param, packageName);
+    }
+
+    /**
+     * Bloqueia a expansão do shade (painel de notificações/quick settings),
+     * sem desativar a status bar em si (hora, ícones, badges continuam normais).
+     *
+     * Alvo confirmado via strings do classes.dex desta build (Android 12):
+     * com.android.systemui.statusbar.phone.NotificationPanelViewController
+     * Métodos: expandNotificationPanel, instantExpandNotificationsPanel
+     */
+    private void hookDisableShade(PackageReadyParam param, String packageName) {
+        try {
+            Class<?> panelControllerClass = Class.forName(
+                    "com.android.systemui.statusbar.phone.NotificationPanelViewController",
+                    false,
+                    param.getClassLoader()
+            );
+
+            int hookedCount = 0;
+            for (Method method : panelControllerClass.getDeclaredMethods()) {
+                String name = method.getName();
+                if (name.equals("expandNotificationPanel")
+                        || name.equals("instantExpandNotificationsPanel")
+                        || name.equals("animateExpandNotificationsPanel")
+                        || name.equals("animateExpandSettingsPanel")) {
+                    hook(method).intercept(chain -> {
+                        escreverLog(packageName, "SHADE_BLOCK: " + name + " interceptado, expansao bloqueada");
+                        // não chama chain.proceed() -> bloqueia a expansão
+                        return null;
+                    });
+                    hookedCount++;
+                }
+            }
+
+            Log.i(TAG, "MODULO: hookDisableShade - " + hookedCount + " métodos hookados em NotificationPanelViewController");
+            escreverLog(packageName, "SHADE_HOOK_INIT: " + hookedCount + " métodos hookados");
+        } catch (Throwable t) {
+            Log.e(TAG, "MODULO: erro ao hookar NotificationPanelViewController", t);
+        }
     }
 
     private void spoofBuildProperties(String packageName) {
