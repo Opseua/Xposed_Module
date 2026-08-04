@@ -38,50 +38,6 @@ public class MainModule extends XposedModule {
         hookCameraCharacteristics(param, packageName);
     }
 
-    /**
-     * Bloqueia a expansão do shade (painel de notificações/quick settings),
-     * sem desativar a status bar em si (hora, ícones, badges continuam normais).
-     *
-     * Alvo confirmado via análise real (androguard) do classes2.dex desta build (Android 12):
-     * com.android.systemui.statusbar.phone.NotificationPanelViewController
-     * Métodos confirmados com assinatura exata:
-     *   expand(Z)V, expandWithQs()V, expandWithoutQs()V,
-     *   onExpandingStarted()V, updateExpandedHeight(F)V
-     */
-    private void hookDisableShade(PackageReadyParam param, String packageName) {
-        try {
-            Class<?> panelControllerClass = Class.forName(
-                    "com.android.systemui.statusbar.phone.NotificationPanelViewController",
-                    false,
-                    param.getClassLoader()
-            );
-
-            int hookedCount = 0;
-            for (Method method : panelControllerClass.getDeclaredMethods()) {
-                String name = method.getName();
-                boolean alvo = name.equals("expand")
-                        || name.equals("expandWithQs")
-                        || name.equals("expandWithoutQs")
-                        || name.equals("onExpandingStarted");
-
-                if (alvo) {
-                    method.setAccessible(true);
-                    hook(method).intercept(chain -> {
-                        escreverLog(packageName, "SHADE_BLOCK: " + name + " interceptado, expansao bloqueada");
-                        // não chama chain.proceed() -> bloqueia a expansão
-                        return null;
-                    });
-                    hookedCount++;
-                }
-            }
-
-            Log.i(TAG, "MODULO: hookDisableShade - " + hookedCount + " métodos hookados em NotificationPanelViewController");
-            escreverLog(packageName, "SHADE_HOOK_INIT: " + hookedCount + " métodos hookados");
-        } catch (Throwable t) {
-            Log.e(TAG, "MODULO: erro ao hookar NotificationPanelViewController", t);
-        }
-    }
-
     private void spoofBuildProperties(String packageName) {
         try {
             aplicarElogarBuild(packageName, "MANUFACTURER", "samsung");
