@@ -1,7 +1,0 @@
-# libxposed module properties
-minApiVersion=101
-targetApiVersion=101
-# staticScope=false -> o escopo NAO vem mais fixo de um scope.list.
-# O usuario escolhe os apps direto no gerenciador Xposed/LSPosed,
-# sem precisar recompilar o modulo para adicionar apps novos.
-staticScope=false
