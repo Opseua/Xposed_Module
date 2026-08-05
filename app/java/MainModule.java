@@ -4,15 +4,11 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedInterface;
-import io.github.libxposed.api.XposedModuleInterface;
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
-import io.github.libxposed.api.XposedInterface.HookParam;
 
 public class MainModule extends XposedModule {
 
-    public MainModule(XposedInterface base, XposedModuleInterface.ModuleLoadedParam param) {
-        super(base, param);
-    }
+    // Construtor removido para usar o padrão sem argumentos exigido pela sua build.
 
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
@@ -56,9 +52,26 @@ public class MainModule extends XposedModule {
             Method getMethod1 = systemPropertiesClass.getDeclaredMethod("get", String.class);
             Method getMethod2 = systemPropertiesClass.getDeclaredMethod("get", String.class, String.class);
 
-            // No libxposed passamos a referência da classe que contém os métodos estáticos do hook
-            hook(getMethod1, SystemPropHook.class);
-            hook(getMethod2, SystemPropHook.class);
+            XposedInterface.Hooker systemPropHooker = new XposedInterface.Hooker() {
+                @Override
+                public Object intercept(Chain chain) throws Throwable {
+                    Object[] args = chain.getArgs();
+                    if (args.length > 0 && args[0] instanceof String) {
+                        String key = (String) args[0];
+                        
+                        if (key.contains("model")) return "SM-S911B";
+                        if (key.contains("device") || key.contains("name")) return "dm1q";
+                        if (key.contains("fingerprint")) return "samsung/dm1q/dm1q:14/UP1A.231005.007/S911BXXU1AWBD:user/release-keys";
+                        if (key.equals("ro.build.description")) return "dm1q-user 14 UP1A.231005.007 S911BXXU1AWBD release-keys";
+                        if (key.contains("hardware") || key.equals("ro.board.platform")) return "kalama";
+                    }
+                    // Retorna o valor original para propriedades que não estamos alterando
+                    return chain.proceed();
+                }
+            };
+
+            hook(getMethod1, systemPropHooker);
+            hook(getMethod2, systemPropHooker);
 
         } catch (Exception e) {
             log(Log.ERROR, "Xposed_Module", "Erro no spoofing SystemProperties: " + e.getMessage());
@@ -70,44 +83,29 @@ public class MainModule extends XposedModule {
             Method getPropertyMethod1 = System.class.getDeclaredMethod("getProperty", String.class);
             Method getPropertyMethod2 = System.class.getDeclaredMethod("getProperty", String.class, String.class);
 
-            hook(getPropertyMethod1, UserAgentHook.class);
-            hook(getPropertyMethod2, UserAgentHook.class);
+            XposedInterface.Hooker userAgentHooker = new XposedInterface.Hooker() {
+                @Override
+                public Object intercept(Chain chain) throws Throwable {
+                    Object[] args = chain.getArgs();
+                    
+                    // Executa o método original primeiro para obter o valor real
+                    Object result = chain.proceed();
+                    
+                    if (args.length > 0 && "http.agent".equals(args[0]) && result instanceof String) {
+                        String realAgent = (String) result;
+                        if (realAgent.contains("SM-A525M")) {
+                            return realAgent.replace("SM-A525M", "SM-S911B");
+                        }
+                    }
+                    return result;
+                }
+            };
+
+            hook(getPropertyMethod1, userAgentHooker);
+            hook(getPropertyMethod2, userAgentHooker);
             
         } catch (Exception e) {
             log(Log.ERROR, "Xposed_Module", "Erro no spoofing System.getProperty: " + e.getMessage());
-        }
-    }
-
-    // 🛠️ Classes Hooker exigidas pela arquitetura do libxposed
-    
-    public static class SystemPropHook implements XposedInterface.Hooker {
-        public static void afterInvocation(HookParam param) {
-            String key = (String) param.args[0];
-            if (key == null) return;
-
-            if (key.contains("model")) {
-                param.setResult("SM-S911B");
-            } else if (key.contains("device") || key.contains("name")) {
-                param.setResult("dm1q");
-            } else if (key.contains("fingerprint")) {
-                param.setResult("samsung/dm1q/dm1q:14/UP1A.231005.007/S911BXXU1AWBD:user/release-keys");
-            } else if (key.equals("ro.build.description")) {
-                param.setResult("dm1q-user 14 UP1A.231005.007 S911BXXU1AWBD release-keys");
-            } else if (key.contains("hardware") || key.equals("ro.board.platform")) {
-                param.setResult("kalama");
-            }
-        }
-    }
-
-    public static class UserAgentHook implements XposedInterface.Hooker {
-        public static void afterInvocation(HookParam param) {
-            String key = (String) param.args[0];
-            if ("http.agent".equals(key)) {
-                String realAgent = (String) param.getResult();
-                if (realAgent != null && realAgent.contains("SM-A525M")) {
-                    param.setResult(realAgent.replace("SM-A525M", "SM-S911B"));
-                }
-            }
         }
     }
 }
