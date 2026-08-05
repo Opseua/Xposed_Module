@@ -7,20 +7,11 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 
 public class MainModule extends XposedModule {
 
-    @Override
+@Override
     public void onPackageLoaded(PackageLoadedParam param) {
         log(Log.INFO, "Xposed_Module", "Processo do app iniciado -> " + param.getPackageName());
 
         try {
-            Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
-            Field unsafeField = unsafeClass.getDeclaredField("theUnsafe");
-            unsafeField.setAccessible(true);
-            Object unsafe = unsafeField.get(null);
-
-            Method staticFieldBase = unsafeClass.getMethod("staticFieldBase", Field.class);
-            Method staticFieldOffset = unsafeClass.getMethod("staticFieldOffset", Field.class);
-            Method putObject = unsafeClass.getMethod("putObject", Object.class, long.class, Object.class);
-
             String[][] propriedades = {
                 {"MANUFACTURER", "samsung"},
                 {"BRAND", "samsung"},
@@ -29,16 +20,24 @@ public class MainModule extends XposedModule {
                 {"PRODUCT", "dm1q"}
             };
 
+            // Acessa a propriedade interna do Android que controla os modificadores
+            java.lang.reflect.Field accessFlagsField = java.lang.reflect.Field.class.getDeclaredField("accessFlags");
+            accessFlagsField.setAccessible(true);
+
             for (String[] prop : propriedades) {
-                Field field = Build.class.getDeclaredField(prop[0]);
+                java.lang.reflect.Field field = android.os.Build.class.getDeclaredField(prop[0]);
                 field.setAccessible(true);
                 
-                Object base = staticFieldBase.invoke(unsafe, field);
-                long offset = (long) staticFieldOffset.invoke(unsafe, field);
-                putObject.invoke(unsafe, base, offset, prop[1]);
+                // Remove o bloqueio 'final' manipulando os bits
+                int flags = accessFlagsField.getInt(field);
+                accessFlagsField.setInt(field, flags & ~java.lang.reflect.Modifier.FINAL);
+                
+                // O set tradicional agora funciona
+                field.set(null, prop[1]);
             }
         } catch (Exception e) {
             log(Log.ERROR, "Xposed_Module", "Erro no spoofing: " + e.getMessage());
         }
     }
+    
 }
