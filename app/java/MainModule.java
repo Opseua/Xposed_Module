@@ -8,16 +8,15 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
  * Único comportamento: ao carregar qualquer app presente no escopo
  * (escolhido pelo usuário no gerenciador Xposed/LSPosed, já que
  * staticScope=false no module.prop), registra no log o nome do
- * pacote carregado. Nada além disso.
+ * pacote carregado e aplica o spoofing.
  */
 public class MainModule extends XposedModule {
 
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
-        log(Log.INFO, "Xposed_Module", "pacote carregado -> " + param.getPackageName());
-    }
+        log(Log.INFO, "Xposed_Module", "app aberto -> " + param.getPackageName());
 
-    try {
+        try {
             String[][] propriedades = {
                 {"MANUFACTURER", "samsung"},
                 {"BRAND", "samsung"},
@@ -34,5 +33,5 @@ public class MainModule extends XposedModule {
         } catch (Exception e) {
             log(Log.ERROR, "Xposed_Module", "Erro no spoofing: " + e.getMessage());
         }
-    
+    }
 }
