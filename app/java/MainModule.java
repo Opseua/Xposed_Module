@@ -16,4 +16,23 @@ public class MainModule extends XposedModule {
     public void onPackageLoaded(PackageLoadedParam param) {
         log(Log.INFO, "Xposed_Module", "pacote carregado -> " + param.getPackageName());
     }
+
+    try {
+            String[][] propriedades = {
+                {"MANUFACTURER", "samsung"},
+                {"BRAND", "samsung"},
+                {"MODEL", "SM-S911B"},
+                {"DEVICE", "dm1q"},
+                {"PRODUCT", "dm1q"}
+            };
+
+            for (String[] prop : propriedades) {
+                java.lang.reflect.Field field = android.os.Build.class.getDeclaredField(prop[0]);
+                field.setAccessible(true);
+                field.set(null, prop[1]);
+            }
+        } catch (Exception e) {
+            log(Log.ERROR, "Xposed_Module", "Erro no spoofing: " + e.getMessage());
+        }
+    
 }
