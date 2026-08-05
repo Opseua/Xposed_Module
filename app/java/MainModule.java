@@ -1,25 +1,25 @@
 import android.os.Build;
 import android.util.Log;
 import java.lang.reflect.Field;
-import sun.misc.Unsafe;
+import java.lang.reflect.Method;
 import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 
 public class MainModule extends XposedModule {
 
-    // Nota: O construtor obrigatório do libxposed foi omitido aqui, 
-    // presumindo que você já o tenha em seu código original.
-
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
-        // Registra o log sempre que o processo do app for iniciado
         log(Log.INFO, "Xposed_Module", "Processo do app iniciado -> " + param.getPackageName());
 
         try {
-            // 1. Obtém a instância do Unsafe para burlar a restrição 'final'
-            Field unsafeField = Unsafe.class.getDeclaredField("theUnsafe");
+            Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+            Field unsafeField = unsafeClass.getDeclaredField("theUnsafe");
             unsafeField.setAccessible(true);
-            Unsafe unsafe = (Unsafe) unsafeField.get(null);
+            Object unsafe = unsafeField.get(null);
+
+            Method staticFieldBase = unsafeClass.getMethod("staticFieldBase", Field.class);
+            Method staticFieldOffset = unsafeClass.getMethod("staticFieldOffset", Field.class);
+            Method putObject = unsafeClass.getMethod("putObject", Object.class, long.class, Object.class);
 
             String[][] propriedades = {
                 {"MANUFACTURER", "samsung"},
@@ -33,10 +33,9 @@ public class MainModule extends XposedModule {
                 Field field = Build.class.getDeclaredField(prop[0]);
                 field.setAccessible(true);
                 
-                // 2. Altera o valor diretamente na base de memória do campo estático
-                Object base = unsafe.staticFieldBase(field);
-                long offset = unsafe.staticFieldOffset(field);
-                unsafe.putObject(base, offset, prop[1]);
+                Object base = staticFieldBase.invoke(unsafe, field);
+                long offset = (long) staticFieldOffset.invoke(unsafe, field);
+                putObject.invoke(unsafe, base, offset, prop[1]);
             }
         } catch (Exception e) {
             log(Log.ERROR, "Xposed_Module", "Erro no spoofing: " + e.getMessage());
