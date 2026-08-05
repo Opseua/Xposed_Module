@@ -3,11 +3,15 @@ plugins {
 }
 
 android {
-    namespace = "opseua"
+    // O Android exige que namespace/applicationId tenha pelo menos
+    // um "." (formato de domínio reverso) - "opseua" sozinho não é
+    // aceito pelo manifest merger. Isso é só um identificador interno
+    // do Android; o código Java continua sem "package" declarado.
+    namespace = "com.opseua.module"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "opseua"
+        applicationId = "com.opseua.module"
         minSdk = 31
         versionCode = 1
         versionName = "1.0.0"
