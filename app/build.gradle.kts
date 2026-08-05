@@ -13,20 +13,21 @@ android {
         versionName = "1.0.0"
     }
 
-    // Estrutura rasa: tudo dentro de app/src/, um único nível,
-    // separado por tipo (java/, res/, xposedMeta/), em vez do
-    // padrão do Android (src/main/java/<pacote>/...).
+    // Estrutura rasa: tudo dentro de app/src/, separado por tipo
+    // (java/, res/, xposedMeta/), em vez do padrão do Android
+    // (src/main/java/<pacote>/...).
+    //
+    // Dentro de xposedMeta/ existe META-INF/xposed/ - é o único
+    // caminho fixo exigido pelo libxposed dentro do artefato final
+    // (module.prop e java_init.list), não dá pra achatar sem quebrar
+    // a detecção do módulo. Fora isso, tudo o que você edita fica
+    // solto em app/src/.
     sourceSets {
         getByName("main") {
             manifest.srcFile("src/AndroidManifest.xml")
             java.setSrcDirs(listOf("src/java"))
             res.setSrcDirs(listOf("src/res"))
-            // module.prop e java_init.list precisam ficar em
-            // META-INF/xposed/ dentro do artefato final (exigência do
-            // libxposed). A pasta gerada abaixo já tem essa estrutura
-            // interna mínima; o que fica achatado em app/src/ é só o
-            // que você edita.
-            resources.srcDir(layout.buildDirectory.dir("generated/xposedMeta"))
+            resources.setSrcDirs(listOf("src/xposedMeta"))
         }
     }
 
@@ -57,23 +58,4 @@ android {
 dependencies {
     compileOnly("androidx.annotation:annotation:1.9.1")
     compileOnly("io.github.libxposed:api:102.0.0")
-}
-
-// Copia module.prop e java_init.list de src/xposedMeta/ (raso) para
-// build/generated/xposedMeta/META-INF/xposed/ (caminho exigido pelo
-// libxposed dentro do artefato final). Roda automaticamente antes de
-// qualquer processamento de resources.
-val prepareXposedMeta = tasks.register<Copy>("prepareXposedMeta") {
-    from("src/xposedMeta")
-    into(layout.buildDirectory.dir("generated/xposedMeta/META-INF/xposed"))
-}
-
-tasks.matching { it.name.startsWith("process") && it.name.contains("Resources") }
-    .configureEach { dependsOn(prepareXposedMeta) }
-tasks.matching { it.name.startsWith("merge") && it.name.contains("JavaResource") }
-    .configureEach { dependsOn(prepareXposedMeta) }
-tasks.whenTaskAdded {
-    if (name.startsWith("merge") && name.contains("JavaResource")) {
-        dependsOn(prepareXposedMeta)
-    }
 }
