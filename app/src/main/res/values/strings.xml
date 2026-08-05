@@ -1,4 +1,0 @@
-<resources>
-    <string name="app_name">Camera Watcher</string>
-    <string name="xposed_description">Loga no LSPosed quando o app alvo abre a câmera.</string>
-</resources>
