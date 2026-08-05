@@ -1,6 +1,5 @@
-import io.github.libxposed.api.XposedInterface;
+import android.util.Log;
 import io.github.libxposed.api.XposedModule;
-import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam;
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 
 /**
@@ -13,12 +12,8 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
  */
 public class MainModule extends XposedModule {
 
-    public MainModule(XposedInterface base, ModuleLoadedParam param) {
-        super(base, param);
-    }
-
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
-        log("Opseua: pacote carregado -> " + param.getPackageName());
+        log(Log.INFO, "OPSEUA", "pacote carregado -> " + param.getPackageName());
     }
 }
