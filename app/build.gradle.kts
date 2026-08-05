@@ -21,11 +21,12 @@ android {
     // (java/, res/, xposedMeta/), em vez do padrão do Android
     // (src/main/java/<pacote>/...).
     //
-    // Dentro de xposedMeta/ existe META-INF/xposed/ - é o único
+    // Dentro de src/res/ o AAPT exige subpastas por tipo de resource
+    // (xml/, values/ etc.) - isso é regra fixa do Android, não dá pra
+    // achatar. Dentro de xposedMeta/ existe META-INF/xposed/ - é o
     // caminho fixo exigido pelo libxposed dentro do artefato final
-    // (module.prop e java_init.list), não dá pra achatar sem quebrar
-    // a detecção do módulo. Fora isso, tudo o que você edita fica
-    // solto em app/src/.
+    // (module.prop e java_init.list), também não dá pra achatar.
+    // Fora essas duas exigências, tudo fica solto em app/src/.
     sourceSets {
         getByName("main") {
             manifest.srcFile("src/AndroidManifest.xml")
