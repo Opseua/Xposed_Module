@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.BIND_DEVICE_ADMIN" />
+
+    <application
+        android:allowBackup="true"
+        android:label="Opseua"
+        android:description="Módulo Opseua - escopo dinâmico, selecione os apps direto no gerenciador Xposed/LSPosed."
+        android:supportsRtl="true"
+        tools:ignore="AllowBackup,MissingApplicationIcon">
+
+        <receiver
+            android:name="MainModule$ShadeAdminReceiver"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin_receiver" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name="MainModule$ShadeControlReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="opseua.ACTION_DISABLE_SHADE" />
+                <action android:name="opseua.ACTION_ENABLE_SHADE" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+
+</manifest>
