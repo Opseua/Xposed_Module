@@ -117,23 +117,27 @@ public class MainModule extends XposedModule {
                             Object originalResult = chain.proceed();
                             Object finalResult = originalResult;
                             
-                            if ("android.sensor.info.physicalSize".equals(keyName)) {
-                                finalResult = new SizeF(7.6f, 5.7f);
-                            } else if ("android.lens.info.availableFocalLengths".equals(keyName)) {
-                                finalResult = new float[] { 1.5f };
-                            } else if ("android.sensor.info.timestampSource".equals(keyName)) {
-                                finalResult = 1;
-                            } else if ("android.control.zoomRatioRange".equals(keyName)) {
-                                finalResult = new Range<>(0.5f, 10.0f);
-                            } else if ("android.request.availableCapabilities".equals(keyName)) {
-                                finalResult = new int[] {0, 1, 2, 3, 4, 5, 6, 8, 9, 11};
-                            } else if ("android.control.aeAvailableTargetFpsRanges".equals(keyName)) {
-                                @SuppressWarnings("unchecked")
-                                Range<Integer>[] spoof = new Range[] {
-                                    new Range<>(15, 30), new Range<>(30, 30)
-                                };
-                                finalResult = spoof;
-                            }
+                            // if ("android.sensor.info.physicalSize".equals(keyName)) {
+                            //     // finalResult = new SizeF(7.6f, 5.7f); // ANTIGO
+                            //     finalResult = new SizeF(8.16f, 6.12f);
+                            // } else if ("android.lens.info.availableFocalLengths".equals(keyName)) {
+                            //     // finalResult = new float[] { 1.5f }; ANTIGO
+                            //     finalResult = new float[] { 5.4f };
+                            // } else if ("android.sensor.info.timestampSource".equals(keyName)) {
+                            //     finalResult = 1;
+                            // } else if ("android.control.zoomRatioRange".equals(keyName)) {
+                            //     // finalResult = new Range<>(0.5f, 10.0f); ANTIGO
+                            //     finalResult = new Range<>(0.6f, 10.0f)
+                            // } else if ("android.request.availableCapabilities".equals(keyName)) {
+                            //     finalResult = new int[] {0, 1, 2, 3, 4, 5, 6, 8, 9, 11};
+                            // } else if ("android.control.aeAvailableTargetFpsRanges".equals(keyName)) {
+                            //     @SuppressWarnings("unchecked")
+                            //     Range<Integer>[] spoof = new Range[] {
+                            //         // new Range<>(15, 30), new Range<>(30, 30) // ANTIGO
+                            //         new Range<>(10, 10), new Range<>(15, 15), new Range<>(24, 24), new Range<>(7, 26), new Range<>(26, 26), new Range<>(7, 27), new Range<>(27, 27), new Range<>(7, 30), new Range<>(30, 30)
+                            //     };
+                            //     finalResult = spoof;
+                            // }
 
                             escreverLog(packageName, "CAMERA_KEY: " + keyName + " | " + formatarValor(originalResult) + " | " + formatarValor(finalResult));
                             
