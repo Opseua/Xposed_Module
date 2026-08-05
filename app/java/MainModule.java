@@ -3,7 +3,7 @@ import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 
 /**
- * OPSEUA - módulo base.
+ * Xposed_Module - módulo base.
  *
  * Único comportamento: ao carregar qualquer app presente no escopo
  * (escolhido pelo usuário no gerenciador Xposed/LSPosed, já que
@@ -14,6 +14,6 @@ public class MainModule extends XposedModule {
 
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
-        log(Log.INFO, "OPSEUA", "pacote carregado -> " + param.getPackageName());
+        log(Log.INFO, "Xposed_Module", "pacote carregado -> " + param.getPackageName());
     }
 }

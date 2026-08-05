@@ -18,5 +18,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Opseua"
+rootProject.name = "Xposed_Module"
 include(":app")

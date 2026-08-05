@@ -4,14 +4,14 @@ plugins {
 
 android {
     // O Android exige que namespace/applicationId tenha pelo menos
-    // um "." (formato de domínio reverso) - "opseua" sozinho não é
+    // um "." (formato de domínio reverso) - "Xposed_Module" sozinho não é
     // aceito pelo manifest merger. Isso é só um identificador interno
     // do Android; o código Java continua sem "package" declarado.
-    namespace = "com.opseua.module"
+    namespace = "com.xposedmodule.module"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.opseua.module"
+        applicationId = "com.xposedmodule.module"
         minSdk = 31
         versionCode = 1
         versionName = "1.0.0"
