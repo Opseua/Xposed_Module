@@ -1,4 +1,6 @@
+import android.os.Build;
 import android.util.Log;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
@@ -10,46 +12,78 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 public class MainModule extends XposedModule {
 
     private static final Map<String, String> SPOOF_PROPS = new HashMap<>();
+    
+    // Valores globais para evitar repetição
+    private static final String NOVO_MODELO = "SM-S911B";
+    private static final String NOVO_DISPOSITIVO = "dm1q";
 
     static {
-        // ------ SPOOF DO MODELO (S911B) ------
-        String novoModelo = "SM-S911B";
-        SPOOF_PROPS.put("ro.product.model", novoModelo);
-        SPOOF_PROPS.put("ro.product.odm.model", novoModelo);
-        SPOOF_PROPS.put("ro.product.system.model", novoModelo);
-        SPOOF_PROPS.put("ro.product.system_ext.model", novoModelo);
-        SPOOF_PROPS.put("ro.product.vendor.model", novoModelo);
-        SPOOF_PROPS.put("ro.product.product.model", novoModelo);
-        SPOOF_PROPS.put("ro.build.model", novoModelo);
+        // ------ SPOOF DO MODELO ------
+        SPOOF_PROPS.put("ro.product.model", NOVO_MODELO);
+        SPOOF_PROPS.put("ro.product.odm.model", NOVO_MODELO);
+        SPOOF_PROPS.put("ro.product.system.model", NOVO_MODELO);
+        SPOOF_PROPS.put("ro.product.system_ext.model", NOVO_MODELO);
+        SPOOF_PROPS.put("ro.product.vendor.model", NOVO_MODELO);
+        SPOOF_PROPS.put("ro.product.product.model", NOVO_MODELO);
+        SPOOF_PROPS.put("ro.build.model", NOVO_MODELO);
 
-        // ------ SPOOF DO DISPOSITIVO (dm1q) ------
-        String novoDispositivo = "dm1q";
-        SPOOF_PROPS.put("ro.product.device", novoDispositivo);
-        SPOOF_PROPS.put("ro.product.odm.device", novoDispositivo);
-        SPOOF_PROPS.put("ro.product.system.device", novoDispositivo);
-        SPOOF_PROPS.put("ro.product.system_ext.device", novoDispositivo);
-        SPOOF_PROPS.put("ro.product.vendor.device", novoDispositivo);
-        SPOOF_PROPS.put("ro.product.product.device", novoDispositivo);
+        // ------ SPOOF DO DISPOSITIVO ------
+        SPOOF_PROPS.put("ro.product.device", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.product.odm.device", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.product.system.device", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.product.system_ext.device", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.product.vendor.device", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.product.product.device", NOVO_DISPOSITIVO);
 
-        // ------ SPOOF DO PRODUTO (NOME DO PROJETO) ------
-        // (Isso tira o a52qub / qssi do seu log)
-        SPOOF_PROPS.put("ro.product.name", novoDispositivo);
-        SPOOF_PROPS.put("ro.product.odm.name", novoDispositivo);
-        SPOOF_PROPS.put("ro.product.system.name", novoDispositivo);
-        SPOOF_PROPS.put("ro.product.system_ext.name", novoDispositivo);
-        SPOOF_PROPS.put("ro.product.vendor.name", novoDispositivo);
-        SPOOF_PROPS.put("ro.product.product.name", novoDispositivo);
-        SPOOF_PROPS.put("ro.build.product", novoDispositivo);
-        
-        // Se você quiser no futuro alterar a BOARD (chip), o local é esse:
-        // SPOOF_PROPS.put("ro.board.platform", "kalama");
-        // SPOOF_PROPS.put("ro.product.board", "kalama");
+        // ------ SPOOF DO PRODUTO ------
+        SPOOF_PROPS.put("ro.product.name", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.product.odm.name", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.product.system.name", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.product.system_ext.name", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.product.vendor.name", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.product.product.name", NOVO_DISPOSITIVO);
+        SPOOF_PROPS.put("ro.build.product", NOVO_DISPOSITIVO);
     }
 
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
-        log(Log.INFO, "Xposed_Spoof", "Iniciando spoofing no app -> " + param.getPackageName());
+        log(Log.INFO, "Xposed_Spoof", "Iniciando spoofing completo no app -> " + param.getPackageName());
+        
+        // 1. Altera as variáveis estáticas da classe Java
+        alterarClasseBuild();
+        
+        // 2. Intercepta as consultas de propriedades de baixo nível
         aplicarSpoofingSystemProperties();
+    }
+
+    private void alterarClasseBuild() {
+        try {
+            Field accessFlagsField = Field.class.getDeclaredField("accessFlags");
+            accessFlagsField.setAccessible(true);
+
+            // Substitui os valores fixos da classe Build
+            setBuildField("MODEL", NOVO_MODELO, accessFlagsField);
+            setBuildField("DEVICE", NOVO_DISPOSITIVO, accessFlagsField);
+            setBuildField("PRODUCT", NOVO_DISPOSITIVO, accessFlagsField);
+            
+        } catch (Exception e) {
+            log(Log.ERROR, "Xposed_Spoof", "Erro no accessFlags da classe Build: " + e.getMessage());
+        }
+    }
+
+    private void setBuildField(String fieldName, String novoValor, Field accessFlagsField) {
+        try {
+            Field field = Build.class.getDeclaredField(fieldName);
+            field.setAccessible(true);
+
+            // Burlar restrição 'final'
+            int flags = accessFlagsField.getInt(field);
+            accessFlagsField.setInt(field, flags & ~java.lang.reflect.Modifier.FINAL);
+
+            field.set(null, novoValor);
+        } catch (Exception e) {
+            log(Log.ERROR, "Xposed_Spoof", "Erro ao alterar Build." + fieldName + ": " + e.getMessage());
+        }
     }
 
     private void aplicarSpoofingSystemProperties() {
@@ -66,18 +100,14 @@ public class MainModule extends XposedModule {
                     if (!args.isEmpty() && args.get(0) instanceof String) {
                         String key = (String) args.get(0);
                         
-                        // Se a propriedade requisitada estiver no nosso Dicionário, entrega o valor falso IMEDIATAMENTE
                         if (SPOOF_PROPS.containsKey(key)) {
                             return SPOOF_PROPS.get(key);
                         }
                     }
-                    
-                    // Se não estiver no dicionário (como versão do android, id da build, etc), deixa o app ler do sistema
                     return chain.proceed();
                 }
             };
 
-            // Aplica os hooks interceptando as chamadas
             hook(getMethod1).intercept(hooker);
             hook(getMethod2).intercept(hooker);
 
