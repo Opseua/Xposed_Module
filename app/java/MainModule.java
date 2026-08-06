@@ -1,3 +1,4 @@
+
 import android.os.Build;
 import android.util.Log;
 import java.lang.reflect.Field;
@@ -8,51 +9,51 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 
 public class MainModule extends XposedModule {
 
-    // 💡 Dicionário central para organizar todos os blocos de spoofing de forma contínua
     private static final Map<String, String> SPOOF_PROPS = new HashMap<>();
 
+    // ------ SPOOF
     static {
-        // ------ SPOOF: [ro.product] ------
-        SPOOF_PROPS.put("ro.product.model", "SM-S911B");
-        SPOOF_PROPS.put("ro.product.odm.model", "SM-S911B");
+        // [ro.product.system]
         SPOOF_PROPS.put("ro.product.system.model", "SM-S911B");
         SPOOF_PROPS.put("ro.product.system_ext.model", "SM-S911B");
-        SPOOF_PROPS.put("ro.product.vendor.model", "SM-S911B");
-        SPOOF_PROPS.put("ro.product.product.model", "SM-S911B");
-
-        SPOOF_PROPS.put("ro.product.device", "dm1q");
-        SPOOF_PROPS.put("ro.product.odm.device", "dm1q");
-        SPOOF_PROPS.put("ro.product.vendor.device", "dm1q");
         SPOOF_PROPS.put("ro.product.system.device", "dm1q");
         SPOOF_PROPS.put("ro.product.system_ext.device", "dm1q");
-        SPOOF_PROPS.put("ro.product.product.device", "dm1q");
-        SPOOF_PROPS.put("ro.product.name", "dm1q");
-        SPOOF_PROPS.put("ro.product.odm.name", "dm1q");
-        SPOOF_PROPS.put("ro.product.vendor.name", "dm1q");
         SPOOF_PROPS.put("ro.product.system.name", "dm1q");
         SPOOF_PROPS.put("ro.product.system_ext.name", "dm1q");
-        SPOOF_PROPS.put("ro.product.product.name", "dm1q");
+        // SPOOF_PROPS.put("ro.product.system.brand", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
+        // SPOOF_PROPS.put("ro.product.system_ext.brand", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
+        // SPOOF_PROPS.put("ro.product.system.manufacturer", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
+        // SPOOF_PROPS.put("ro.product.system_ext.manufacturer", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
 
-        SPOOF_PROPS.put("ro.product.board", "kalama");
-        SPOOF_PROPS.put("ro.product.build.version.incremental", "S911BXXU1AWBD");
-        SPOOF_PROPS.put("ro.product.build.fingerprint", "samsung/dm1q/dm1q:14/UP1A.231005.007/S911BXXU1AWBD:user/release-keys");
-
-        SPOOF_PROPS.put("ro.product.brand", "samsung");
-        SPOOF_PROPS.put("ro.product.odm.brand", "samsung");
-        SPOOF_PROPS.put("ro.product.vendor.brand", "samsung");
-        SPOOF_PROPS.put("ro.product.system.brand", "samsung");
-        SPOOF_PROPS.put("ro.product.system_ext.brand", "samsung");
-        SPOOF_PROPS.put("ro.product.product.brand", "samsung");
-
-        SPOOF_PROPS.put("ro.product.manufacturer", "samsung");
-        SPOOF_PROPS.put("ro.product.odm.manufacturer", "samsung");
-        SPOOF_PROPS.put("ro.product.vendor.manufacturer", "samsung");
-        SPOOF_PROPS.put("ro.product.system.manufacturer", "samsung");
-        SPOOF_PROPS.put("ro.product.system_ext.manufacturer", "samsung");
-        SPOOF_PROPS.put("ro.product.product.manufacturer", "samsung");
-        
+        // // [ro.product.odm]
+        // SPOOF_PROPS.put("ro.product.odm.model", "SM-S911B");
+        // SPOOF_PROPS.put("ro.product.odm.device", "dm1q");
+        // SPOOF_PROPS.put("ro.product.odm.name", "dm1q");
+        // // SPOOF_PROPS.put("ro.product.odm.brand", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
+        // // SPOOF_PROPS.put("ro.product.odm.manufacturer", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
+        // // [ro.product.vendor]
+        // SPOOF_PROPS.put("ro.product.vendor.model", "SM-S911B");
+        // SPOOF_PROPS.put("ro.product.vendor.device", "dm1q");
+        // SPOOF_PROPS.put("ro.product.vendor.name", "dm1q");
+        // // SPOOF_PROPS.put("ro.product.vendor.brand", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
+        // // SPOOF_PROPS.put("ro.product.vendor.manufacturer", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
+        // // [ro.product.product]
+        // SPOOF_PROPS.put("ro.product.product.model", "SM-S911B");
+        // SPOOF_PROPS.put("ro.product.product.device", "dm1q");
+        // SPOOF_PROPS.put("ro.product.product.name", "dm1q");
+        // // SPOOF_PROPS.put("ro.product.product.brand", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
+        // // SPOOF_PROPS.put("ro.product.product.manufacturer", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
+        // // [ro.product.build]
+        // SPOOF_PROPS.put("ro.product.build.version.incremental", "S911BXXU1AWBD");
+        // SPOOF_PROPS.put("ro.product.build.fingerprint", "samsung/dm1q/dm1q:14/UP1A.231005.007/S911BXXU1AWBD:user/release-keys");
+        // // → [ro.product.***]
+        // SPOOF_PROPS.put("ro.product.model", "SM-S911B");
+        // SPOOF_PROPS.put("ro.product.device", "dm1q");
+        // SPOOF_PROPS.put("ro.product.name", "dm1q");
+        // SPOOF_PROPS.put("ro.product.board", "kalama");
+        // SPOOF_PROPS.put("ro.product.brand", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
+        // SPOOF_PROPS.put("ro.product.manufacturer", "samsung"); // NÃO NECESSÁRIO PORQUE JÁ É SAMSUNG (MANTER COMENTADO)
         // ----------------------------------
-        
         // Novos blocos (ex: [ro.build], [ro.vendor]) poderão ser adicionados aqui no futuro.
     }
 
@@ -83,19 +84,21 @@ public class MainModule extends XposedModule {
     }
 
     /**
-     * 💡 Função modular genérica que encapsula a lógica de drible da variável 'final'.
-     * Elimina a repetição massiva de blocos try/catch.
+     * 💡 Função modular genérica que encapsula a lógica de drible da variável
+     * 'final'. Elimina a repetição massiva de blocos try/catch.
      */
     private void setBuildField(String fieldName, String novoValor, Field accessFlagsField) {
-        if (novoValor == null) return;
-        
+        if (novoValor == null) {
+            return;
+        }
+
         try {
             Field field = Build.class.getDeclaredField(fieldName);
             field.setAccessible(true);
-            
+
             int flags = accessFlagsField.getInt(field);
             accessFlagsField.setInt(field, flags & ~java.lang.reflect.Modifier.FINAL);
-            
+
             field.set(null, novoValor);
         } catch (Exception e) {
             log(Log.ERROR, "Xposed_Module", "Erro ao alterar Build." + fieldName + ": " + e.getMessage());
