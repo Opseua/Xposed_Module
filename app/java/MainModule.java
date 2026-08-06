@@ -1,29 +1,21 @@
 import android.util.Log;
+import java.io.File;
+import java.io.FileWriter;
 import java.lang.reflect.Method;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 
 public class MainModule extends XposedModule {
 
-    private static final Map<String, String> SPOOF_PROPS = new HashMap<>();
-
-    static {
-        SPOOF_PROPS.put("ro.product.system.model", "SM-S911B");
-        SPOOF_PROPS.put("ro.product.system.device", "dm1q");
-        SPOOF_PROPS.put("ro.product.system.name", "dm1q");
-    }
-
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
-        log(Log.INFO, "Xposed_Module", "App aberto -> " + param.getPackageName());
-        aplicarSpoofingSystemProperties();
+        log(Log.INFO, "Xposed_Monitor", "Iniciando monitoramento no app -> " + param.getPackageName());
+        iniciarMonitoramento(param.getPackageName());
     }
 
-    private void aplicarSpoofingSystemProperties() {
+    private void iniciarMonitoramento(String packageName) {
         try {
             Class<?> sysPropsClass = Class.forName("android.os.SystemProperties");
             Method getMethod1 = sysPropsClass.getDeclaredMethod("get", String.class);
@@ -32,23 +24,51 @@ public class MainModule extends XposedModule {
             XposedInterface.Hooker hooker = new XposedInterface.Hooker() {
                 @Override
                 public Object intercept(Chain chain) throws Throwable {
-                    List<Object> args = chain.getArgs(); 
+                    List<Object> args = chain.getArgs();
+                    
+                    // Executa o método original primeiro para descobrir qual é a resposta real do sistema
+                    Object result = chain.proceed(); 
+                    
                     if (!args.isEmpty() && args.get(0) instanceof String) {
                         String key = (String) args.get(0);
-                        if (SPOOF_PROPS.containsKey(key)) {
-                            return SPOOF_PROPS.get(key);
-                        }
+                        String realValue = result != null ? result.toString() : "null";
+                        
+                        // Registra no log do LSPosed/Xposed em tempo real
+                        log(Log.INFO, "Xposed_Monitor", "Consultou: [" + key + "] -> Retornou: " + realValue);
+                        
+                        // Salva no arquivo de texto
+                        salvarEmArquivo(packageName, key, realValue);
                     }
-                    return chain.proceed();
+                    
+                    return result; // Retorna o valor original para o app não quebrar
                 }
             };
 
-            // Sintaxe correta usando encadeamento
             hook(getMethod1).intercept(hooker);
             hook(getMethod2).intercept(hooker);
 
         } catch (Exception e) {
-            log(Log.ERROR, "Xposed_Module", "Erro no spoofing SystemProperties: " + e.getMessage());
+            log(Log.ERROR, "Xposed_Monitor", "Erro ao iniciar monitoramento: " + e.getMessage());
+        }
+    }
+
+    private void salvarEmArquivo(String packageName, String key, String value) {
+        try {
+            // Usa o diretório de dados privados do aplicativo alvo, onde não precisamos de permissões
+            File dir = new File("/data/user/0/" + packageName + "/cache");
+            if (!dir.exists()) {
+                dir.mkdirs();
+            }
+            
+            File logFile = new File(dir, "spoof_monitor.txt");
+            
+            // O parâmetro 'true' no FileWriter faz o texto ser adicionado no fim do arquivo, sem apagar o que já existe
+            FileWriter writer = new FileWriter(logFile, true);
+            writer.append("[").append(key).append("] = ").append(value).append("\n");
+            writer.flush();
+            writer.close();
+        } catch (Exception e) {
+            log(Log.ERROR, "Xposed_Monitor", "Falha ao gravar no arquivo txt: " + e.getMessage());
         }
     }
 }
