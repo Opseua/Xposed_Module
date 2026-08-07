@@ -1,28 +1,65 @@
+package seu.pacote.modulo;
+
 import android.os.Build;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
+
+import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.regex.Pattern;
+
 public class MainModule extends XposedModule {
+
+    private static final Pattern BLOCKED_URL = Pattern.compile(
+        "^https://figcbapp\\.blob\\.core\\.windows\\.net/data/_assets/task/.*\\.mp4.*$"
+    );
 
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
+
+        // ---- 1. Spoofing do Build.MODEL ----
         try {
-            // 1. Acessa o controlador de restrições do Android
             Field accessFlags = Field.class.getDeclaredField("accessFlags");
             accessFlags.setAccessible(true);
 
-            // 2. Aponta para a variável MODEL
             Field field = Build.class.getDeclaredField("MODEL");
             field.setAccessible(true);
-            
-            // 3. Remove a proteção 'final' e injeta o novo modelo
+
             accessFlags.setInt(field, accessFlags.getInt(field) & ~Modifier.FINAL);
             field.set(null, "SM-S911B");
-            
         } catch (Exception e) {
-            // Falha silenciosa
+            log("Erro no spoofing: " + e.getMessage());
+        }
+
+        // ---- 2. Bloqueio de URL via OkHttp ----
+        try {
+            ClassLoader cl = param.getClassLoader();
+
+            Class<?> builderClass = cl.loadClass("okhttp3.Request$Builder");
+            Method buildMethod = builderClass.getDeclaredMethod("build");
+
+            hook(buildMethod)
+                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object request = chain.proceed();
+
+                    Method urlMethod = request.getClass().getMethod("url");
+                    Object httpUrl = urlMethod.invoke(request);
+                    String url = httpUrl.toString();
+
+                    if (BLOCKED_URL.matcher(url).matches()) {
+                        log("Bloqueado: " + url);
+                        throw new RuntimeException("Blocked by module: " + url);
+                    }
+
+                    return request;
+                });
+
+        } catch (Throwable t) {
+            log("Erro no hook: " + t.getMessage());
         }
     }
 }
