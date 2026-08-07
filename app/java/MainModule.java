@@ -8,12 +8,39 @@ import io.github.libxposed.api.XposedModule;
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam;
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.URL;
 
 public class MainModule extends XposedModule {
+
+    // ALERTA: Substitua pelo nome do pacote real do aplicativo alvo
+    private static final String APP_PACKAGE_NAME = "com.bakerdata.minute";
+
+    private void writeToCache(String text) {
+        try {
+            // Caminho direto para o cache interno do app
+            String path = "/data/data/" + APP_PACKAGE_NAME + "/cache/urls_interceptadas.txt";
+            File file = new File(path);
+            
+            if (!file.exists()) {
+                file.getParentFile().mkdirs();
+                file.createNewFile();
+            }
+            
+            FileWriter fw = new FileWriter(file, true);
+            BufferedWriter bw = new BufferedWriter(fw);
+            bw.write(text);
+            bw.newLine();
+            bw.close();
+        } catch (Exception e) {
+            Log.e("URL_MONITOR", "Erro ao gravar no TXT: " + e.getMessage());
+        }
+    }
 
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
@@ -35,7 +62,7 @@ public class MainModule extends XposedModule {
     @Override
     public void onPackageReady(PackageReadyParam param) {
         
-        // 1. Hook Global Nativo (Captura quase tudo)
+        // 1. Hook Global Nativo
         try {
             Method openConnectionMethod = URL.class.getDeclaredMethod("openConnection");
 
@@ -49,11 +76,10 @@ public class MainModule extends XposedModule {
                             Method getURLMethod = connection.getClass().getMethod("getURL");
                             Object urlObj = getURLMethod.invoke(connection);
                             if (urlObj != null) {
-                                // Usa Log.e (Error) para o texto ficar VERMELHO e fácil de achar
-                                Log.e("URL_MONITOR", "🔗 NATIVO: " + urlObj.toString());
+                                writeToCache("NATIVO: " + urlObj.toString());
                             }
                         } catch (Exception e) {
-                            // Ignora erros internos de reflexão
+                            // Ignora erros internos
                         }
                     }
                     return connection;
@@ -62,7 +88,7 @@ public class MainModule extends XposedModule {
             Log.e("URL_MONITOR", "Erro no hook nativo: " + t.getMessage());
         }
 
-        // 2. Hook OkHttp (Para descobrir se está ofuscado)
+        // 2. Hook OkHttp
         try {
             ClassLoader cl = param.getClassLoader();
             Class<?> builderClass = cl.loadClass("okhttp3.Request$Builder");
@@ -75,12 +101,12 @@ public class MainModule extends XposedModule {
                     Method urlMethod = request.getClass().getMethod("url");
                     Object httpUrl = urlMethod.invoke(request);
 
-                    Log.e("URL_MONITOR", "🌐 OKHTTP: " + httpUrl.toString());
+                    writeToCache("OKHTTP: " + httpUrl.toString());
 
                     return request;
                 });
         } catch (ClassNotFoundException e) {
-            Log.e("URL_MONITOR", "⚠️ OkHttp NÃO ENCONTRADO (Pode estar ofuscado ou o app não usa)");
+            writeToCache("AVISO: OkHttp não encontrado ou ofuscado no app.");
         } catch (Throwable t) {
             Log.e("URL_MONITOR", "Erro no hook OkHttp: " + t.getMessage());
         }
