@@ -1,5 +1,7 @@
 package seu.pacote.modulo;
 
+import android.app.ActivityThread;
+import android.app.Application;
 import android.os.Build;
 import android.util.Log;
 
@@ -18,17 +20,20 @@ import java.net.URL;
 
 public class MainModule extends XposedModule {
 
-    // ALERTA: Substitua pelo nome do pacote real do aplicativo alvo
-    private static final String APP_PACKAGE_NAME = "com.bakerdata.minute";
-
     private void writeToCache(String text) {
         try {
-            // Caminho direto para o cache interno do app
-            String path = "/data/data/" + APP_PACKAGE_NAME + "/cache/urls_interceptadas.txt";
-            File file = new File(path);
+            // Obtém o contexto da aplicação em tempo de execução
+            Application app = ActivityThread.currentApplication();
+            if (app == null) {
+                Log.e("URL_MONITOR", "Contexto nulo, não foi possível acessar o cache.");
+                return;
+            }
+
+            // Usa o diretório oficial de cache do app
+            File cacheDir = app.getCacheDir();
+            File file = new File(cacheDir, "urls_interceptadas.txt");
             
             if (!file.exists()) {
-                file.getParentFile().mkdirs();
                 file.createNewFile();
             }
             
@@ -44,7 +49,6 @@ public class MainModule extends XposedModule {
 
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
-        // ---- Spoofing do Build.MODEL ----
         try {
             Field accessFlags = Field.class.getDeclaredField("accessFlags");
             accessFlags.setAccessible(true);
