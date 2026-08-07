@@ -1,6 +1,5 @@
 package seu.pacote.modulo;
 
-import android.app.ActivityThread;
 import android.app.Application;
 import android.os.Build;
 import android.util.Log;
@@ -22,8 +21,11 @@ public class MainModule extends XposedModule {
 
     private void writeToCache(String text) {
         try {
-            // Obtém o contexto da aplicação em tempo de execução
-            Application app = ActivityThread.currentApplication();
+            // Usa reflexão para acessar o ActivityThread (evita erro de compilação)
+            Class<?> activityThreadClass = Class.forName("android.app.ActivityThread");
+            Method currentApplicationMethod = activityThreadClass.getDeclaredMethod("currentApplication");
+            Application app = (Application) currentApplicationMethod.invoke(null);
+
             if (app == null) {
                 Log.e("URL_MONITOR", "Contexto nulo, não foi possível acessar o cache.");
                 return;
@@ -49,6 +51,7 @@ public class MainModule extends XposedModule {
 
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
+        // ---- Spoofing do Build.MODEL ----
         try {
             Field accessFlags = Field.class.getDeclaredField("accessFlags");
             accessFlags.setAccessible(true);
