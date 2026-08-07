@@ -1,6 +1,7 @@
 package seu.pacote.modulo;
 
 import android.os.Build;
+import android.util.Log;
 
 import io.github.libxposed.api.XposedInterface;
 import io.github.libxposed.api.XposedModule;
@@ -31,7 +32,7 @@ public class MainModule extends XposedModule {
             accessFlags.setInt(field, accessFlags.getInt(field) & ~Modifier.FINAL);
             field.set(null, "SM-S911B");
         } catch (Exception e) {
-            log("MainModule - Erro no spoofing: " + e.getMessage(), e);
+            log(Log.ERROR, "MainModule", "Erro no spoofing: " + e.getMessage(), e);
         }
     }
 
@@ -54,7 +55,7 @@ public class MainModule extends XposedModule {
                     String url = httpUrl.toString();
 
                     if (BLOCKED_URL.matcher(url).matches()) {
-                        log("MainModule - Bloqueado: " + url);
+                        log(Log.INFO, "MainModule", "Bloqueado: " + url);
                         throw new RuntimeException("Blocked by module: " + url);
                     }
 
@@ -62,7 +63,7 @@ public class MainModule extends XposedModule {
                 });
 
         } catch (Throwable t) {
-            log("MainModule - Erro no hook: " + t.getMessage(), t);
+            log(Log.ERROR, "MainModule", "Erro no hook: " + t.getMessage(), t);
         }
     }
 }
