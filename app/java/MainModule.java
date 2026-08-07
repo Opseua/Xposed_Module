@@ -11,13 +11,9 @@ import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.regex.Pattern;
+import java.net.URL;
 
 public class MainModule extends XposedModule {
-
-    private static final Pattern BLOCKED_URL = Pattern.compile(
-        "^https://figcbapp\\.blob\\.core\\.windows\\.net/data/_assets/task/.*\\.mp4.*$"
-    );
 
     @Override
     public void onPackageLoaded(PackageLoadedParam param) {
@@ -38,10 +34,37 @@ public class MainModule extends XposedModule {
 
     @Override
     public void onPackageReady(PackageReadyParam param) {
-        // ---- Bloqueio de URL via OkHttp ----
+        
+        // 1. Hook Global Nativo (Captura quase tudo)
+        try {
+            Method openConnectionMethod = URL.class.getDeclaredMethod("openConnection");
+
+            hook(openConnectionMethod)
+                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept(chain -> {
+                    Object connection = chain.proceed();
+
+                    if (connection != null) {
+                        try {
+                            Method getURLMethod = connection.getClass().getMethod("getURL");
+                            Object urlObj = getURLMethod.invoke(connection);
+                            if (urlObj != null) {
+                                // Usa Log.e (Error) para o texto ficar VERMELHO e fácil de achar
+                                Log.e("URL_MONITOR", "🔗 NATIVO: " + urlObj.toString());
+                            }
+                        } catch (Exception e) {
+                            // Ignora erros internos de reflexão
+                        }
+                    }
+                    return connection;
+                });
+        } catch (Throwable t) {
+            Log.e("URL_MONITOR", "Erro no hook nativo: " + t.getMessage());
+        }
+
+        // 2. Hook OkHttp (Para descobrir se está ofuscado)
         try {
             ClassLoader cl = param.getClassLoader();
-
             Class<?> builderClass = cl.loadClass("okhttp3.Request$Builder");
             Method buildMethod = builderClass.getDeclaredMethod("build");
 
@@ -49,21 +72,17 @@ public class MainModule extends XposedModule {
                 .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
                 .intercept(chain -> {
                     Object request = chain.proceed();
-
                     Method urlMethod = request.getClass().getMethod("url");
                     Object httpUrl = urlMethod.invoke(request);
-                    String url = httpUrl.toString();
 
-                    if (BLOCKED_URL.matcher(url).matches()) {
-                        log(Log.INFO, "MainModule", "Bloqueado: " + url);
-                        throw new RuntimeException("Blocked by module: " + url);
-                    }
+                    Log.e("URL_MONITOR", "🌐 OKHTTP: " + httpUrl.toString());
 
                     return request;
                 });
-
+        } catch (ClassNotFoundException e) {
+            Log.e("URL_MONITOR", "⚠️ OkHttp NÃO ENCONTRADO (Pode estar ofuscado ou o app não usa)");
         } catch (Throwable t) {
-            log(Log.ERROR, "MainModule", "Erro no hook: " + t.getMessage(), t);
+            Log.e("URL_MONITOR", "Erro no hook OkHttp: " + t.getMessage());
         }
     }
 }
