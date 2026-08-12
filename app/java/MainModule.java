@@ -1,4 +1,4 @@
-package com.example.module;
+package com.xposedmodule.module;
 
 import android.hardware.camera2.CameraCharacteristics;
 import android.os.Environment;
