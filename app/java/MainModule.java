@@ -20,11 +20,13 @@ public class MainModule extends XposedModule {
         // Log visível no LSPosed
         this.log(Log.INFO, TAG, "APP ABERTO: " + param.getPackageName());
 
-        // ATENÇÃO: ajuste esse caminho conforme onde a pasta compartilhada do
-        // MuMuPlayer realmente é montada dentro do Android (confirme com
-        // "adb shell find /sdcard -iname server.dex"). /data/local/tmp
-        // normalmente NÃO é a pasta compartilhada e pode ter restrição de leitura.
-        File dexFile = new File("/sdcard/Pictures/xposed/server.dex");
+        // Confirmado via "adb shell find" que o arquivo raw fica em
+        // /data/media/0/Pictures/xposed/server.dex. Esse é o caminho "de baixo nível"
+        // (visto pelo shell root). Apps Android normais enxergam esse mesmo local
+        // através do caminho "de app" /storage/emulated/0/..., que é o que deve
+        // ser usado aqui (usar /data/media/0 direto pode falhar por permissão,
+        // dependendo do contexto SELinux do app).
+        File dexFile = new File("/storage/emulated/0/Pictures/xposed/server.dex");
 
         if (!dexFile.exists()) {
             this.log(Log.ERROR, TAG, "FALHA CRÍTICA: Arquivo DEX não existe ou o aplicativo não tem permissão de leitura! Caminho: " + dexFile.getAbsolutePath());
