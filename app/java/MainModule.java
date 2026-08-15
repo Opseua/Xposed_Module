@@ -60,18 +60,18 @@ public class MainModule extends XposedModule {
             File cacheDir = new File("/data/data/" + param.getPackageName() + "/cache");
             if (!cacheDir.exists()) cacheDir.mkdirs();
 
-            // O parent do DexClassLoader precisa ser o classloader do APP
-            // HOOKADO (param.getClassLoader()), não o do próprio módulo
-            // (MainModule.class.getClassLoader()). "compileOnly" na dependência
-            // do libxposed:api significa que XposedModule NÃO é empacotada
-            // dentro do APK do módulo - ela é injetada pelo próprio Vector
-            // diretamente no processo do app hookado. O classloader do módulo
-            // não enxerga essa classe; o do app hookado sim.
+            // XposedModule NÃO é uma classe "normal" resolvível em qualquer
+            // classloader: ela não é empacotada no APK do módulo nem existe
+            // no app hookado. O framework Vector injeta a implementação real
+            // dela via attachFramework() diretamente no processo/classloader
+            // do PRÓPRIO módulo (com.xposedmodule.module) no momento em que
+            // MainModule é instanciado. Por isso o parent aqui precisa ser
+            // o classloader do MainModule, não o do app hookado.
             DexClassLoader loader = new DexClassLoader(
                     dexFile.getAbsolutePath(),
                     cacheDir.getAbsolutePath(),
                     null,
-                    param.getClassLoader()
+                    MainModule.class.getClassLoader()
             );
 
             this.log(Log.INFO, TAG, "LOADER CARREGADO para: " + param.getPackageName());
@@ -79,7 +79,19 @@ public class MainModule extends XposedModule {
 
             Class<?> payloadClass = loader.loadClass("com.xposedmodule.payload.ServerPayload");
 
-            Method startMethod = payloadClass.getMethod("start", XposedModule.class, String.class, ClassLoader.class);
+            // IMPORTANTE: getMethod("start", XposedModule.class, ...) força o
+            // classloader que fez a chamada reflexiva a RESOLVER XposedModule
+            // como tipo. Só que XposedModule não é empacotada em nenhum dex
+            // físico (compileOnly) - ela existe apenas como instância já
+            // resolvida internamente pelo framework via attachFramework().
+            // Isso quebra a resolução por reflection em qualquer combinação
+            // de classloader. Solução: usar Object.class na assinatura do
+            // start() (tanto aqui quanto no ServerPayload.java). Dentro do
+            // ServerPayload, "this" (a instância real) também é acessado só
+            // via reflection (hostModule.getClass().getMethod("log", ...)),
+            // nunca com um cast/import direto para XposedModule - assim o
+            // payload nunca precisa resolver esse tipo.
+            Method startMethod = payloadClass.getMethod("start", Object.class, String.class, ClassLoader.class);
             startMethod.invoke(null, this, param.getPackageName(), param.getClassLoader());
 
         } catch (Throwable t) {
