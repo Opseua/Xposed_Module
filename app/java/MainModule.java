@@ -31,9 +31,9 @@ public class MainModule extends XposedModule {
             // Carrega a classe do seu código externo
             Class<?> payloadClass = loader.loadClass("com.xposedmodule.payload.SpoofPayload");
             
-            // Pega o método start() e passa a instância deste módulo e o param
-            Method startMethod = payloadClass.getMethod("start", XposedModule.class, PackageReadyParam.class);
-            startMethod.invoke(null, this, param);
+            // Pega o método start() passando String e ClassLoader em vez do PackageReadyParam inteiro
+            Method startMethod = payloadClass.getMethod("start", XposedModule.class, String.class, ClassLoader.class);
+            startMethod.invoke(null, this, param.getPackageName(), param.getClassLoader());
 
         } catch (Throwable t) {
             Log.e(TAG, "Erro ao carregar o arquivo dex: ", t);
