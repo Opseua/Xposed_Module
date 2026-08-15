@@ -5,15 +5,9 @@ import java.io.File;
 import java.lang.reflect.Method;
 import dalvik.system.DexClassLoader;
 import io.github.libxposed.api.XposedModule;
-import io.github.libxposed.api.XposedInterface;
 
 public class MainModule extends XposedModule {
     private static final String TAG = "MODULO_LOADER";
-
-    // Construtor obrigatório da API do LibXposed
-    public MainModule(XposedInterface base, ModuleLoadedParam param) {
-        super(base, param);
-    }
 
     @Override
     public void onPackageReady(PackageReadyParam param) {
