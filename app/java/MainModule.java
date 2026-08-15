@@ -1,5 +1,6 @@
 package com.xposedmodule.module;
 
+import android.os.SystemClock;
 import android.util.Log;
 import dalvik.system.DexClassLoader;
 import java.io.File;
@@ -14,9 +15,32 @@ import io.github.libxposed.api.XposedModule;
 public class MainModule extends XposedModule {
     private static final String TAG = "MODULO_LOADER";
 
-    private void logToFile(String basePath, String msg) {
+    // Controla se já logamos "MODULO PRONTO" NESTE BOOT do sistema (não só
+    // neste processo do app). Comparamos o horário atual de boot do sistema
+    // (uptimeMillis atrás de agora = instante exato do último boot) com um
+    // valor salvo em arquivo. Se forem diferentes, é a primeira vez que o
+    // módulo roda desde o boot mais recente - grava o marcador e atualiza
+    // o arquivo. Isso é confiável independente de /data/local/tmp ser
+    // limpo ou não no reboot (comportamento varia por fabricante/versão).
+    private static final String BOOT_MARKER_FILE = "/data/data/%s/files/ultimo_boot_marcado.txt";
+
+    private long instanteDoBootAtual() {
+        // System.currentTimeMillis() = horário real agora.
+        // SystemClock.elapsedRealtime() = tempo decorrido desde o último boot.
+        // A diferença entre os dois é (aproximadamente) o instante exato em
+        // que o sistema ligou - único por boot, então serve como "ID do boot".
+        return System.currentTimeMillis() - SystemClock.elapsedRealtime();
+    }
+
+    private String pkgName;
+
+    // Função única que agrupa console (this.log) + arquivo, em vez de
+    // chamar this.log(...) e logToFile(...) em sequência toda vez.
+    private void logWrite(int priority, String msg) {
+        this.log(priority, TAG, msg);
+
         try {
-            File dir = new File(basePath);
+            File dir = new File("/data/data/" + pkgName + "/files");
             if (!dir.exists()) dir.mkdirs();
 
             String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(new Date());
@@ -32,10 +56,41 @@ public class MainModule extends XposedModule {
     public void onPackageReady(PackageReadyParam param) {
         super.onPackageReady(param);
 
+        pkgName = param.getPackageName();
+
         this.log(Log.INFO, TAG, "RODANDO");
 
-        String appDataDir = "/data/data/" + param.getPackageName() + "/files";
-        logToFile(appDataDir, "RODANDO - app: " + param.getPackageName());
+        // Só grava "MODULO PRONTO" se essa é a primeira vez que o módulo
+        // roda desde o último boot do sistema (não a cada abertura do app).
+        try {
+            long bootAtual = instanteDoBootAtual();
+            File marcador = new File(String.format(BOOT_MARKER_FILE, pkgName));
+
+            long ultimoBootMarcado = -1;
+            if (marcador.exists()) {
+                String conteudo = new String(java.nio.file.Files.readAllBytes(marcador.toPath())).trim();
+                try {
+                    ultimoBootMarcado = Long.parseLong(conteudo);
+                } catch (NumberFormatException ignored) {
+                    // arquivo corrompido/vazio - trata como se nunca tivesse marcado
+                }
+            }
+
+            // Tolerância de 2 segundos: os dois cálculos de "instante do boot"
+            // (em chamadas diferentes) podem variar minimamente por causa do
+            // arredondamento entre currentTimeMillis()/elapsedRealtime().
+            boolean bootDiferente = Math.abs(bootAtual - ultimoBootMarcado) > 2000;
+
+            if (bootDiferente) {
+                if (!marcador.getParentFile().exists()) marcador.getParentFile().mkdirs();
+                try (FileWriter w = new FileWriter(marcador, false)) {
+                    w.write(String.valueOf(bootAtual));
+                }
+                logWrite(Log.INFO, "MODULO PRONTO - app: " + pkgName);
+            }
+        } catch (IOException e) {
+            Log.e(TAG, "Falha ao checar/gravar marcador de boot: " + e.getMessage());
+        }
 
         // Caminho confirmado via "adb shell find": a pasta compartilhada do
         // MuMuPlayer aparece dentro do Android em /storage/emulated/0/...
@@ -44,13 +99,12 @@ public class MainModule extends XposedModule {
         File dexFile = new File("/storage/emulated/0/Pictures/xposed/server.dex");
 
         if (!dexFile.exists()) {
-            this.log(Log.ERROR, TAG, "FALHA CRÍTICA: Arquivo DEX não existe ou sem permissão de leitura! Caminho: " + dexFile.getAbsolutePath());
-            logToFile(appDataDir, "FALHA CRÍTICA: dex não encontrado em " + dexFile.getAbsolutePath());
+            logWrite(Log.ERROR, "FALHA CRÍTICA: dex não encontrado em " + dexFile.getAbsolutePath());
             return;
         }
 
         try {
-            File cacheDir = new File("/data/data/" + param.getPackageName() + "/cache");
+            File cacheDir = new File("/data/data/" + pkgName + "/cache");
             if (!cacheDir.exists()) cacheDir.mkdirs();
 
             // XposedModule NÃO é uma classe "normal" resolvível em qualquer
@@ -67,8 +121,7 @@ public class MainModule extends XposedModule {
                     MainModule.class.getClassLoader()
             );
 
-            this.log(Log.INFO, TAG, "LOADER CARREGADO para: " + param.getPackageName());
-            logToFile(appDataDir, "LOADER CARREGADO para: " + param.getPackageName());
+            logWrite(Log.INFO, "LOADER CARREGADO para: " + pkgName);
 
             Class<?> payloadClass = loader.loadClass("com.xposedmodule.payload.ServerPayload");
 
@@ -85,15 +138,13 @@ public class MainModule extends XposedModule {
             // nunca com um cast/import direto para XposedModule - assim o
             // payload nunca precisa resolver esse tipo.
             Method startMethod = payloadClass.getMethod("start", Object.class, String.class, ClassLoader.class);
-            startMethod.invoke(null, this, param.getPackageName(), param.getClassLoader());
+            startMethod.invoke(null, this, pkgName, param.getClassLoader());
 
         } catch (Throwable t) {
             // Log.getStackTraceString mostra a causa real (ex: ClassNotFoundException,
             // NoSuchMethodError por assinatura errada) - t.getMessage() sozinho
             // costuma vir null e esconder o erro de verdade.
-            String erro = Log.getStackTraceString(t);
-            this.log(Log.ERROR, TAG, "Erro ao carregar o payload:\n" + erro);
-            logToFile(appDataDir, "ERRO ao carregar payload:\n" + erro);
+            logWrite(Log.ERROR, "Erro ao carregar o payload:\n" + Log.getStackTraceString(t));
         }
     }
 }
