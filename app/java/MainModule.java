@@ -11,7 +11,7 @@ import io.github.libxposed.api.XposedModule;
 
 public class MainModule extends XposedModule {
     private static final String TAG = "MODULO_LOADER";
-    private static final String BOOT_MARKER_FILE = "/data/data/%s/files/ultimo_boot_marcado.txt";
+    private static final String BOOT_MARKER_FILE = "/data/data/%s/files/module_boot.txt";
 
     private long instanteDoBootAtual() {
         return System.currentTimeMillis() - SystemClock.elapsedRealtime();
@@ -65,7 +65,7 @@ public class MainModule extends XposedModule {
             );
 
             try {
-                File loaderMarker = new File("/data/data/" + packageName + "/files/loader_carregado.txt");
+                File loaderMarker = new File("/data/data/" + packageName + "/files/module_complete.txt");
                 long bootAtual = instanteDoBootAtual();
                 long ultimoLoaderBoot = -1;
                 if (loaderMarker.exists()) {
