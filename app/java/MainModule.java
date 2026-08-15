@@ -25,17 +25,9 @@ public class MainModule extends XposedModule {
     }
 
     private boolean estaIgnorado(String packageName) {
-        File ignoreFile = new File(IGNORE_FILE_PATH);
-        if (!ignoreFile.exists()) {
-            return false;
-        }
+        File ignoreFile = new File(IGNORE_FILE_PATH); if (!ignoreFile.exists()) { return false;  }
         try {
-            List<String> linhas = Files.readAllLines(ignoreFile.toPath());
-            for (String linha : linhas) {
-                if (linha.trim().equals(packageName)) {
-                    return true;
-                }
-            }
+            String conteudo = new String(Files.readAllBytes(ignoreFile.toPath())); return conteudo.contains(packageName);
         } catch (IOException e) {
             Log.e(TAG, "Falha ao ler module_ignore.txt: " + e.getMessage());
         }
