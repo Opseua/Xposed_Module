@@ -60,11 +60,18 @@ public class MainModule extends XposedModule {
             File cacheDir = new File("/data/data/" + param.getPackageName() + "/cache");
             if (!cacheDir.exists()) cacheDir.mkdirs();
 
+            // O parent do DexClassLoader precisa ser o classloader do APP
+            // HOOKADO (param.getClassLoader()), não o do próprio módulo
+            // (MainModule.class.getClassLoader()). "compileOnly" na dependência
+            // do libxposed:api significa que XposedModule NÃO é empacotada
+            // dentro do APK do módulo - ela é injetada pelo próprio Vector
+            // diretamente no processo do app hookado. O classloader do módulo
+            // não enxerga essa classe; o do app hookado sim.
             DexClassLoader loader = new DexClassLoader(
                     dexFile.getAbsolutePath(),
                     cacheDir.getAbsolutePath(),
                     null,
-                    MainModule.class.getClassLoader()
+                    param.getClassLoader()
             );
 
             this.log(Log.INFO, TAG, "LOADER CARREGADO para: " + param.getPackageName());
