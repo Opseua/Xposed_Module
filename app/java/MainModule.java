@@ -14,16 +14,9 @@ import io.github.libxposed.api.XposedModule;
 public class MainModule extends XposedModule {
     private static final String TAG = "MODULO_LOADER";
 
-    // /data/local/tmp NÃO é gravável por apps normais (contexto SELinux
-    // untrusted_app não alcança esse diretório, mesmo com o app hookado).
-    // O log do console (this.log) funciona porque passa pelo framework
-    // Xposed com privilégios elevados - mas escrita de arquivo via
-    // FileWriter usa a permissão normal do processo do app.
-    // Por isso escrevemos dentro do próprio diretório do app hookado
-    // (sempre gravável por ele), passado dinamicamente por onPackageReady.
     private void logToFile(String basePath, String msg) {
         try {
-            File dir = new File(basePath, "xposed_logs");
+            File dir = new File(basePath);
             if (!dir.exists()) dir.mkdirs();
 
             String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(new Date());
