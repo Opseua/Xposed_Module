@@ -1,9 +1,11 @@
 package com.xposedmodule.module;
 
 import android.util.Log;
+import dalvik.system.DexClassLoader;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -37,15 +39,49 @@ public class MainModule extends XposedModule {
     public void onPackageReady(PackageReadyParam param) {
         super.onPackageReady(param);
 
-        // ETAPA DE TESTE ISOLADO: só confirma que o módulo está sendo carregado
-        // e executado pelo LSPosed. Nada de DexClassLoader/payload por enquanto.
         this.log(Log.INFO, TAG, "RODANDO");
 
-        // Grava dentro do diretório do próprio app hookado (ex: filemanager),
-        // que sempre é gravável por ele. Acessível depois via:
-        // adb shell run-as <pacote_do_app_hookado> cat files/xposed_logs/modulo_log.txt
-        // (ou com root: adb shell cat /data/data/<pacote>/files/xposed_logs/modulo_log.txt)
         String appDataDir = "/data/data/" + param.getPackageName() + "/files";
         logToFile(appDataDir, "RODANDO - app: " + param.getPackageName());
+
+        // Caminho confirmado via "adb shell find": a pasta compartilhada do
+        // MuMuPlayer aparece dentro do Android em /storage/emulated/0/...
+        // (a raiz "de baixo nível" /data/media/0/... é a mesma coisa vista
+        // pelo shell root, mas apps normais devem usar o caminho de app).
+        File dexFile = new File("/storage/emulated/0/Pictures/xposed/server.dex");
+
+        if (!dexFile.exists()) {
+            this.log(Log.ERROR, TAG, "FALHA CRÍTICA: Arquivo DEX não existe ou sem permissão de leitura! Caminho: " + dexFile.getAbsolutePath());
+            logToFile(appDataDir, "FALHA CRÍTICA: dex não encontrado em " + dexFile.getAbsolutePath());
+            return;
+        }
+
+        try {
+            File cacheDir = new File("/data/data/" + param.getPackageName() + "/cache");
+            if (!cacheDir.exists()) cacheDir.mkdirs();
+
+            DexClassLoader loader = new DexClassLoader(
+                    dexFile.getAbsolutePath(),
+                    cacheDir.getAbsolutePath(),
+                    null,
+                    MainModule.class.getClassLoader()
+            );
+
+            this.log(Log.INFO, TAG, "LOADER CARREGADO para: " + param.getPackageName());
+            logToFile(appDataDir, "LOADER CARREGADO para: " + param.getPackageName());
+
+            Class<?> payloadClass = loader.loadClass("com.xposedmodule.payload.ServerPayload");
+
+            Method startMethod = payloadClass.getMethod("start", XposedModule.class, String.class, ClassLoader.class);
+            startMethod.invoke(null, this, param.getPackageName(), param.getClassLoader());
+
+        } catch (Throwable t) {
+            // Log.getStackTraceString mostra a causa real (ex: ClassNotFoundException,
+            // NoSuchMethodError por assinatura errada) - t.getMessage() sozinho
+            // costuma vir null e esconder o erro de verdade.
+            String erro = Log.getStackTraceString(t);
+            this.log(Log.ERROR, TAG, "Erro ao carregar o payload:\n" + erro);
+            logToFile(appDataDir, "ERRO ao carregar payload:\n" + erro);
+        }
     }
 }
