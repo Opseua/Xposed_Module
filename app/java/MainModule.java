@@ -36,7 +36,7 @@ public class MainModule extends XposedModule {
 
             this.log(Log.INFO, TAG, "LOADER CARREGADO para: " + param.getPackageName());
 
-            Class<?> payloadClass = loader.loadClass("com.xposedmodule.payload.SpoofPayload");
+            Class<?> payloadClass = loader.loadClass("com.xposedmodule.payload.ServerPayload");
             
             Method startMethod = payloadClass.getMethod("start", XposedModule.class, String.class, ClassLoader.class);
             startMethod.invoke(null, this, param.getPackageName(), param.getClassLoader());
