@@ -5,24 +5,31 @@ import java.io.File;
 import java.lang.reflect.Method;
 import dalvik.system.DexClassLoader;
 import io.github.libxposed.api.XposedModule;
+import io.github.libxposed.api.XposedInterface;
 
 public class MainModule extends XposedModule {
     private static final String TAG = "MODULO_LOADER";
+
+    // Construtor obrigatório da API do LibXposed
+    public MainModule(XposedInterface base, ModuleLoadedParam param) {
+        super(base, param);
+    }
 
     @Override
     public void onPackageReady(PackageReadyParam param) {
         super.onPackageReady(param);
         
-        Log.i(TAG, "APP " + param.getPackageName() + " ABERTO");
+        // Log visível no LSPosed
+        this.log(Log.INFO, TAG, "APP ABERTO: " + param.getPackageName());
         
         File dexFile = new File("/data/local/tmp/xposed/server.dex");
+        
         if (!dexFile.exists()) {
-            Log.e(TAG, "DEX NAO ENCONTRADO para o app: " + param.getPackageName());
+            this.log(Log.ERROR, TAG, "FALHA CRÍTICA: Arquivo DEX não existe ou o aplicativo não tem permissão de leitura!");
             return;
         }
 
         try {
-            // Usa o cache do app alvo para otimizar o dex
             File cacheDir = new File("/data/user/0/" + param.getPackageName() + "/cache");
             if (!cacheDir.exists()) cacheDir.mkdirs();
 
@@ -33,17 +40,15 @@ public class MainModule extends XposedModule {
                     MainModule.class.getClassLoader()
             );
 
-            Log.i(TAG, "APP " + param.getPackageName() + " LOADER CARREGADO");
+            this.log(Log.INFO, TAG, "LOADER CARREGADO para: " + param.getPackageName());
 
-            // Carrega a classe do seu código externo
             Class<?> payloadClass = loader.loadClass("com.xposedmodule.payload.SpoofPayload");
             
-            // Pega o método start() passando String e ClassLoader em vez do PackageReadyParam inteiro
             Method startMethod = payloadClass.getMethod("start", XposedModule.class, String.class, ClassLoader.class);
             startMethod.invoke(null, this, param.getPackageName(), param.getClassLoader());
 
         } catch (Throwable t) {
-            Log.e(TAG, "Erro ao carregar o arquivo dex: ", t);
+            this.log(Log.ERROR, TAG, "Erro ao carregar o arquivo dex: " + t.getMessage());
         }
     }
 }
