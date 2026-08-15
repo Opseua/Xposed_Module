@@ -1,8 +1,11 @@
 package com.xposedmodule.module;
 
+import android.os.SystemClock;
 import android.util.Log;
 import dalvik.system.DexClassLoader;
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import io.github.libxposed.api.XposedModule;
 
@@ -10,10 +13,24 @@ public class MainModule extends XposedModule {
     private static final String TAG = "MODULO_LOADER";
     private static final String LOG_FILE_PATH = "/data/data/%s/files/xposed/module_log.txt";
 
+    private boolean eProcessoPrincipal(String packageName) {
+        try {
+            byte[] bytes = java.nio.file.Files.readAllBytes(new File("/proc/self/cmdline").toPath());
+            String cmdline = new String(bytes).trim();
+            return cmdline.equals(packageName);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     @Override
     public void onPackageReady(PackageReadyParam param) {
         super.onPackageReady(param);
         String packageName = param.getPackageName();
+
+        if (!eProcessoPrincipal(packageName)) {
+            return;
+        }
 
         File logFile = new File(String.format(LOG_FILE_PATH, packageName));
         if (!logFile.exists()) {
