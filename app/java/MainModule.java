@@ -13,8 +13,13 @@ public class MainModule extends XposedModule {
     public void onPackageReady(PackageReadyParam param) {
         super.onPackageReady(param);
         
+        Log.i(TAG, "APP " + param.getPackageName() + " ABERTO");
+        
         File dexFile = new File("/data/local/tmp/xposed/server.dex");
-        if (!dexFile.exists()) return;
+        if (!dexFile.exists()) {
+            Log.e(TAG, "DEX NAO ENCONTRADO para o app: " + param.getPackageName());
+            return;
+        }
 
         try {
             // Usa o cache do app alvo para otimizar o dex
@@ -27,6 +32,8 @@ public class MainModule extends XposedModule {
                     null,
                     MainModule.class.getClassLoader()
             );
+
+            Log.i(TAG, "APP " + param.getPackageName() + " LOADER CARREGADO");
 
             // Carrega a classe do seu código externo
             Class<?> payloadClass = loader.loadClass("com.xposedmodule.payload.SpoofPayload");
