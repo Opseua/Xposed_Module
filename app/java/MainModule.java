@@ -19,16 +19,9 @@ public class MainModule extends XposedModule {
 
     @Override
     public void onPackageReady(PackageReadyParam param) {
-        String processName = param.getProcessName();
+        super.onPackageReady(param);
         String packageName = param.getPackageName();
 
-        if (processName != null && !processName.startsWith(packageName)) {
-            return;
-        }
-
-        super.onPackageReady(param);
-
-        // Exibe 'MODULO INICIADO' apenas UMA VEZ por boot do sistema
         try {
             long bootAtual = instanteDoBootAtual();
             File marcador = new File(String.format(BOOT_MARKER_FILE, packageName));
@@ -71,7 +64,6 @@ public class MainModule extends XposedModule {
                     MainModule.class.getClassLoader()
             );
 
-            // Exibe 'LOADER CARREGADO' apenas UMA VEZ por boot do sistema
             try {
                 File loaderMarker = new File("/data/data/" + packageName + "/files/loader_carregado.txt");
                 long bootAtual = instanteDoBootAtual();
