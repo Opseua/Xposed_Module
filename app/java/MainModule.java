@@ -22,7 +22,7 @@ public class MainModule extends XposedModule {
 
     @Keep
     public void logWrite(String msg) {
-        logWrite(msg, false);
+        logWrite(msg, false); // Erros e chamadas diretas escrevem SEMPRE
     }
 
     @Keep
