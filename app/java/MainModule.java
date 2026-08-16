@@ -3,7 +3,6 @@ package com.xposedmodule.module;
 import android.util.Log;
 import dalvik.system.DexClassLoader;
 import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.List;
@@ -25,13 +24,22 @@ public class MainModule extends XposedModule {
     }
 
     private boolean estaIgnorado(String packageName) {
-        File ignoreFile = new File(IGNORE_FILE_PATH); if (!ignoreFile.exists()) { return false;  }
+        File ignoreFile = new File(IGNORE_FILE_PATH);
+        if (!ignoreFile.exists()) {
+            return false;
+        }
         try {
-            String conteudo = new String(Files.readAllBytes(ignoreFile.toPath())); return conteudo.contains(packageName);
+            String conteudo = new String(Files.readAllBytes(ignoreFile.toPath()));
+            return conteudo.contains(packageName);
         } catch (IOException e) {
             Log.e(TAG, "Falha ao ler module_ignore.txt: " + e.getMessage());
         }
         return false;
+    }
+
+    // Método exposto para o Payload realizar o hook de forma segura
+    public Object hookMethodForPayload(Method method) {
+        return hook(method);
     }
 
     @Override
