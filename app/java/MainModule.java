@@ -42,46 +42,47 @@ public class MainModule extends XposedModule {
     }
 
     // Agora o método é genérico e aceita um mapa inteiro com as instruções de spoof
-    @Keep // Impede que o R8 renomeie este método
-    public void hookCameraCharacteristics(ClassLoader targetClassLoader, String packageName, Map<String, Object> spoofMap) {
+    @Keep
+    public void hookCameraManager(ClassLoader targetClassLoader, String packageName, String[] fakeIds, String fallbackCameraId) {
         try {
-            Class<?> cameraCharacteristicsClass = Class.forName(
-                    "android.hardware.camera2.CameraCharacteristics",
+            Class<?> cameraManagerClass = Class.forName(
+                    "android.hardware.camera2.CameraManager",
                     false,
                     targetClassLoader
             );
 
-            for (Method method : cameraCharacteristicsClass.getDeclaredMethods()) {
-                if (method.getName().equals("get") && method.getParameterTypes().length == 1) {
+            for (Method method : cameraManagerClass.getDeclaredMethods()) {
+                
+                // 1. Falsifica a quantidade de câmeras (A lista que aparece no app)
+                if (method.getName().equals("getCameraIdList") && method.getParameterTypes().length == 0) {
                     hook(method).intercept(chain -> {
-                        Object arg = chain.getArgs().get(0);
+                        this.log(Log.INFO, TAG, "CAMERA: getCameraIdList injetado -> " + Arrays.toString(fakeIds));
+                        return fakeIds; // Retorna ["0", "1", "2", "3", "5", "6"]
+                    });
+                }
 
-                        if (arg instanceof CameraCharacteristics.Key) {
-                            CameraCharacteristics.Key<?> key = (CameraCharacteristics.Key<?>) arg;
-                            String keyName = key.getName();
+                // 2. Cria o "Fantasma" para evitar Crash quando o app tentar abrir a câmera falsa
+                if (method.getName().equals("getCameraCharacteristics") && method.getParameterTypes().length == 1) {
+                    hook(method).intercept(chain -> {
+                        String requestedId = (String) chain.getArgs().get(0);
+                        
+                        try {
+                            // Tenta ler a câmera normalmente
+                            return chain.proceed();
+                        } catch (IllegalArgumentException e) {
+                            // Se crashar, é porque seu celular não tem essa câmera física.
+                            // Redirecionamos para a câmera fallback (ex: "0") silenciosamente.
+                            this.log(Log.INFO, TAG, "CAMERA: Criando molde fantasma para ID " + requestedId + " usando lente " + fallbackCameraId);
                             
-                            // Se a chave solicitada existir no nosso mapa injetado, retornamos o valor forjado
-                            if (spoofMap != null && spoofMap.containsKey(keyName)) {
-                                Object spoof = spoofMap.get(keyName);
-                                
-                                // Tratamento apenas para o log ficar legível caso seja Array
-                                String logValue;
-                                if (spoof instanceof int[]) logValue = Arrays.toString((int[]) spoof);
-                                else if (spoof instanceof float[]) logValue = Arrays.toString((float[]) spoof);
-                                else if (spoof instanceof Object[]) logValue = Arrays.toString((Object[]) spoof);
-                                else logValue = String.valueOf(spoof);
-
-                                this.log(Log.INFO, TAG, "CAMERA: " + keyName + " -> " + logValue);
-                                return spoof;
-                            }
+                            Method m = (Method) chain.getMember();
+                            m.setAccessible(true);
+                            return m.invoke(chain.getThisObject(), fallbackCameraId);
                         }
-
-                        return chain.proceed();
                     });
                 }
             }
         } catch (Throwable t) {
-            this.log(Log.ERROR, TAG, "MODULO: erro ao hookar CameraCharacteristics em " + packageName + " -> " + t.getMessage());
+            this.log(Log.ERROR, TAG, "MODULO: erro ao hookar CameraManager em " + packageName + " -> " + t.getMessage());
         }
     }
 
