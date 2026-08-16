@@ -46,7 +46,7 @@ public class MainModule extends XposedModule {
     private WeakHashMap<Object, String> charToIdMap = new WeakHashMap<>();
 
     // Agora o método é genérico e aceita um mapa inteiro com as instruções de spoof
-@Keep
+    @Keep
     public void setupMultiCameraSpoof(ClassLoader targetClassLoader, String packageName, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs) {
         
         // 1. HOOK NO CAMERA MANAGER (Para forjar a quantidade de câmeras e evitar crash)
@@ -65,7 +65,8 @@ public class MainModule extends XposedModule {
                             result = chain.proceed();
                         } catch (Exception e) {
                             // Câmera não existe no hardware atual, aciona o fantasma
-                            Method getChar = (Method) chain.getMember();
+                            // CORREÇÃO AQUI: getMethod() em vez de getMember()
+                            Method getChar = chain.getMethod(); 
                             getChar.setAccessible(true);
                             result = getChar.invoke(chain.getThisObject(), fallbackId);
                         }
