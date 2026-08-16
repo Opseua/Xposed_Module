@@ -4,9 +4,13 @@ import android.hardware.camera2.CameraCharacteristics;
 import android.util.Log;
 import dalvik.system.DexClassLoader;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import java.util.Map;
 import java.util.WeakHashMap;
 import io.github.libxposed.api.XposedModule;
@@ -14,8 +18,34 @@ import androidx.annotation.Keep;
 
 public class MainModule extends XposedModule {
     private static final String TAG = "MODULO_LOADER";
-    private static final String LOG_FILE_PATH = "/data/data/%s/files/xposed/module_log.txt";
-    private static final String IGNORE_FILE_PATH = "/storage/emulated/0/Pictures/xposed/module_ignore.txt";
+    private String currentPackageName = null;
+    private WeakHashMap<Object, String> charToIdMap = new WeakHashMap<>();
+
+    // ==============================================================================
+    // SISTEMA CENTRAL DE LOG (Logcat + TXT local)
+    // ==============================================================================
+    @Keep
+    public void logWrite(String msg) {
+        // 1. Escreve no console para monitoramento via ADB
+        Log.i(TAG, msg);
+        this.log(Log.INFO, TAG, msg);
+
+        // 2. Escreve no txt dentro da pasta segura do aplicativo
+        if (currentPackageName == null) return;
+        try {
+            File dir = new File("/data/data/" + currentPackageName + "/files/xposed");
+            if (!dir.exists()) dir.mkdirs();
+            
+            File logFile = new File(dir, "module_log.txt");
+            String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(new Date());
+            
+            FileWriter fw = new FileWriter(logFile, true);
+            fw.write("[" + timestamp + "] " + msg + "\n");
+            fw.close();
+        } catch (Exception e) {
+            Log.e(TAG, "FALHA AO ESCREVER LOG TXT: " + e.getMessage());
+        }
+    }
 
     private boolean eProcessoPrincipal(String packageName) {
         try {
@@ -26,7 +56,7 @@ public class MainModule extends XposedModule {
     }
 
     private boolean estaIgnorado(String packageName) {
-        File ignoreFile = new File(IGNORE_FILE_PATH);
+        File ignoreFile = new File("/data/data/" + packageName + "/files/xposed/module_ignore.txt");
         if (!ignoreFile.exists()) return false;
         try {
             String conteudo = new String(Files.readAllBytes(ignoreFile.toPath()));
@@ -34,8 +64,6 @@ public class MainModule extends XposedModule {
         } catch (IOException e) { Log.e(TAG, "Falha ler ignore: " + e.getMessage()); }
         return false;
     }
-
-    private WeakHashMap<Object, String> charToIdMap = new WeakHashMap<>();
 
     @Keep
     public void setupSpoofs(ClassLoader targetClassLoader, String packageName, Map<String, String> sysProps, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs, boolean overrideResolutions, boolean hideVpn) {
@@ -54,7 +82,7 @@ public class MainModule extends XposedModule {
                     });
                 }
             }
-        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro SysProps: " + t.getMessage()); }
+        } catch (Throwable t) { logWrite("Erro SysProps: " + t.getMessage()); }
 
         // ETAPA 4: HOOK NO CAMERA MANAGER (Mapeamento de Fantasmas)
         try {
@@ -72,7 +100,6 @@ public class MainModule extends XposedModule {
                     hook(m).intercept(chain -> {
                         String reqId = (String) chain.getArgs().get(0);
                         
-                        // Escudo Anti-Bruteforce
                         if (fakeIds != null && fakeIds.length > 0) {
                             boolean isS23 = false;
                             for (String id : fakeIds) { if (id.equals(reqId)) { isS23 = true; break; } }
@@ -91,7 +118,7 @@ public class MainModule extends XposedModule {
                     });
                 }
             }
-        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraManager: " + t.getMessage()); }
+        } catch (Throwable t) { logWrite("Erro CameraManager: " + t.getMessage()); }
 
         // ETAPA 5 e 7: HOOK NAS PROPRIEDADES 
         if (multiSpoofs != null && !multiSpoofs.isEmpty()) {
@@ -121,7 +148,7 @@ public class MainModule extends XposedModule {
                         });
                     }
                 }
-            } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraCharacteristics: " + t.getMessage()); }
+            } catch (Throwable t) { logWrite("Erro CameraCharacteristics: " + t.getMessage()); }
         }
 
         // ETAPA 6: HOOK DE RESOLUÇÕES 
@@ -141,7 +168,7 @@ public class MainModule extends XposedModule {
                         });
                     }
                 }
-            } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro StreamMap: " + t.getMessage()); }
+            } catch (Throwable t) { logWrite("Erro StreamMap: " + t.getMessage()); }
         }
 
         // ETAPA 8: HOOK DE VPN
@@ -157,26 +184,41 @@ public class MainModule extends XposedModule {
                         });
                     }
                 }
-            } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro NetworkCapabilities: " + t.getMessage()); }
+            } catch (Throwable t) { logWrite("Erro NetworkCapabilities: " + t.getMessage()); }
         }
     }
 
     @Override
     public void onPackageReady(PackageReadyParam param) {
         super.onPackageReady(param);
-        String packageName = param.getPackageName();
-        if (!eProcessoPrincipal(packageName) || estaIgnorado(packageName)) return;
-        
-        File dexFile = new File("/storage/emulated/0/Pictures/xposed/server.dex");
-        if (!dexFile.exists()) return;
+        currentPackageName = param.getPackageName();
+
+        if (!eProcessoPrincipal(currentPackageName)) return;
+
+        // Verifica o arquivo de ignore local do app. Se ignorado, não escreve nada e morre o processo.
+        if (estaIgnorado(currentPackageName)) return;
+
+        logWrite("--- INICIANDO VERIFICAÇÃO PARA: " + currentPackageName + " ---");
+
+        File dexFile = new File("/data/data/" + currentPackageName + "/files/xposed/server.dex");
+        if (!dexFile.exists()) {
+            logWrite("ERRO CRÍTICO: server.dex NÃO ENCONTRADO em " + dexFile.getAbsolutePath());
+            return;
+        }
+
+        logWrite("server.dex encontrado! Carregando classes...");
 
         try {
-            File cacheDir = new File("/data/data/" + packageName + "/cache");
+            File cacheDir = new File("/data/data/" + currentPackageName + "/cache");
             if (!cacheDir.exists()) cacheDir.mkdirs();
             DexClassLoader loader = new DexClassLoader(dexFile.getAbsolutePath(), cacheDir.getAbsolutePath(), null, MainModule.class.getClassLoader());
             Class<?> payloadClass = loader.loadClass("com.xposedmodule.payload.ServerPayload");
             Method startMethod = payloadClass.getMethod("start", Object.class, String.class, ClassLoader.class);
-            startMethod.invoke(null, this, packageName, param.getClassLoader());
-        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro ao carregar o payload:\n" + Log.getStackTraceString(t)); }
+            
+            logWrite("Invocando método start() do Payload...");
+            startMethod.invoke(null, this, currentPackageName, param.getClassLoader());
+        } catch (Throwable t) { 
+            logWrite("ERRO FATAL AO EXECUTAR PAYLOAD: " + Log.getStackTraceString(t)); 
+        }
     }
 }
