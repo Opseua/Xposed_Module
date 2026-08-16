@@ -40,7 +40,24 @@ public class MainModule extends XposedModule {
     @Keep
     public void setupMultiCameraSpoof(ClassLoader targetClassLoader, String packageName, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs, Map<String, String> sysProps) {
         
-        // 1. HOOK NO CAMERA MANAGER E ANTI-BRUTEFORCE
+        // ETAPAS 1 a 3: HOOK DO SYSTEM PROPERTIES (Nativo)
+        try {
+            Class<?> sysPropsClass = Class.forName("android.os.SystemProperties", false, targetClassLoader);
+            for (Method m : sysPropsClass.getDeclaredMethods()) {
+                // Intercepta qualquer variação do método get()
+                if (m.getName().equals("get") && m.getParameterTypes().length >= 1) {
+                    hook(m).intercept(chain -> {
+                        String key = (String) chain.getArgs().get(0);
+                        if (sysProps != null && sysProps.containsKey(key)) {
+                            return sysProps.get(key); // Entrega o texto forjado (Ex: SM-S911B)
+                        }
+                        return chain.proceed();
+                    });
+                }
+            }
+        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro SystemProperties: " + t.getMessage()); }
+
+        // ETAPA 4: HOOK NO CAMERA MANAGER (Quantidade de Câmeras)
         try {
             Class<?> managerClass = Class.forName("android.hardware.camera2.CameraManager", false, targetClassLoader);
             for (Method m : managerClass.getDeclaredMethods()) {
@@ -51,8 +68,6 @@ public class MainModule extends XposedModule {
                 if (m.getName().equals("getCameraCharacteristics") && m.getParameterTypes().length == 1) {
                     hook(m).intercept(chain -> {
                         String reqId = (String) chain.getArgs().get(0);
-                        
-                        // ESCUDO ANTI-BRUTEFORCE
                         boolean isS23 = false;
                         for (String id : fakeIds) { if (id.equals(reqId)) { isS23 = true; break; } }
                         if (!isS23) throw new IllegalArgumentException("Unknown camera ID: " + reqId);
@@ -71,7 +86,7 @@ public class MainModule extends XposedModule {
             }
         } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraManager: " + t.getMessage()); }
 
-        // 2. HOOK NAS PROPRIEDADES E LENTES FANTASMAS
+        // ETAPA 5 E 7: HOOK NAS PROPRIEDADES (Zoom e Restante)
         try {
             Class<?> charClass = Class.forName("android.hardware.camera2.CameraCharacteristics", false, targetClassLoader);
             for (Method m : charClass.getDeclaredMethods()) {
@@ -100,19 +115,14 @@ public class MainModule extends XposedModule {
             }
         } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraCharacteristics: " + t.getMessage()); }
 
-    // 3. HOOK DE RESOLUÇÕES (StreamConfigurationMap)
+        // ETAPA 6: HOOK DE RESOLUÇÕES (StreamConfigurationMap)
         try {
             Class<?> streamMapClass = Class.forName("android.hardware.camera2.params.StreamConfigurationMap", false, targetClassLoader);
             for (Method m : streamMapClass.getDeclaredMethods()) {
                 if (m.getName().equals("getOutputSizes") && m.getParameterTypes().length == 1) {
                     hook(m).intercept(chain -> {
                         Object original = chain.proceed();
-                        
-                        // Se o formato nativo não for suportado, a documentação exige que retorne null.
-                        // Forçar um array aqui causa NullPointerException na lógica interna do app.
-                        if (original == null) {
-                            return null;
-                        }
+                        if (original == null) return null; // Previne crash se o formato não existir
                         
                         return new android.util.Size[] {
                             new android.util.Size(4080, 3060), new android.util.Size(4000, 3000), 
@@ -123,22 +133,6 @@ public class MainModule extends XposedModule {
                 }
             }
         } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro StreamMap: " + t.getMessage()); }
-
-        // 4. HOOK DO SYSTEM PROPERTIES
-        try {
-            Class<?> sysPropsClass = Class.forName("android.os.SystemProperties", false, targetClassLoader);
-            for (Method m : sysPropsClass.getDeclaredMethods()) {
-                if (m.getName().equals("get") && m.getParameterTypes().length >= 1) {
-                    hook(m).intercept(chain -> {
-                        String key = (String) chain.getArgs().get(0);
-                        if (sysProps != null && sysProps.containsKey(key)) {
-                            return sysProps.get(key);
-                        }
-                        return chain.proceed();
-                    });
-                }
-            }
-        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro SystemProperties: " + t.getMessage()); }
     }
 
     @Override
