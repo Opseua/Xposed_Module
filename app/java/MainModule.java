@@ -11,6 +11,8 @@ import java.util.Arrays;
 import java.util.Map;
 import io.github.libxposed.api.XposedModule;
 import androidx.annotation.Keep;
+import java.util.WeakHashMap;
+import java.util.Map;
 
 public class MainModule extends XposedModule {
     private static final String TAG = "MODULO_LOADER";
@@ -41,49 +43,69 @@ public class MainModule extends XposedModule {
         return false;
     }
 
+    private WeakHashMap<Object, String> charToIdMap = new WeakHashMap<>();
+
     // Agora o método é genérico e aceita um mapa inteiro com as instruções de spoof
-    @Keep
-    public void hookCameraManager(ClassLoader targetClassLoader, String packageName, String[] fakeIds, String fallbackCameraId) {
+@Keep
+    public void setupMultiCameraSpoof(ClassLoader targetClassLoader, String packageName, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs) {
+        
+        // 1. HOOK NO CAMERA MANAGER (Para forjar a quantidade de câmeras e evitar crash)
         try {
-            Class<?> cameraManagerClass = Class.forName(
-                    "android.hardware.camera2.CameraManager",
-                    false,
-                    targetClassLoader
-            );
-
-            for (Method method : cameraManagerClass.getDeclaredMethods()) {
-                
-                // 1. Falsifica a quantidade de câmeras (A lista que aparece no app)
-                if (method.getName().equals("getCameraIdList") && method.getParameterTypes().length == 0) {
-                    hook(method).intercept(chain -> {
-                        this.log(Log.INFO, TAG, "CAMERA: getCameraIdList injetado -> " + Arrays.toString(fakeIds));
-                        return fakeIds; // Retorna ["0", "1", "2", "3", "5", "6"]
-                    });
+            Class<?> managerClass = Class.forName("android.hardware.camera2.CameraManager", false, targetClassLoader);
+            for (Method m : managerClass.getDeclaredMethods()) {
+                if (m.getName().equals("getCameraIdList") && m.getParameterTypes().length == 0) {
+                    hook(m).intercept(chain -> fakeIds); // Retorna ["0", "1", "2", "3", "5", "6"]
                 }
-
-                // 2. Cria o "Fantasma" para evitar Crash quando o app tentar abrir a câmera falsa
-                if (method.getName().equals("getCameraCharacteristics") && method.getParameterTypes().length == 1) {
-                    hook(method).intercept(chain -> {
-                        String requestedId = (String) chain.getArgs().get(0);
-                        
+                
+                if (m.getName().equals("getCameraCharacteristics") && m.getParameterTypes().length == 1) {
+                    hook(m).intercept(chain -> {
+                        String reqId = (String) chain.getArgs().get(0);
+                        Object result;
                         try {
-                            // Tenta ler a câmera normalmente
-                            return chain.proceed();
-                        } catch (IllegalArgumentException e) {
-                            // Se crashar, é porque seu celular não tem essa câmera física.
-                            // Redirecionamos para a câmera fallback (ex: "0") silenciosamente.
-                            this.log(Log.INFO, TAG, "CAMERA: Criando molde fantasma para ID " + requestedId + " usando lente " + fallbackCameraId);
-                            
-                            Method m = (Method) chain.getMember();
-                            m.setAccessible(true);
-                            return m.invoke(chain.getThisObject(), fallbackCameraId);
+                            result = chain.proceed();
+                        } catch (Exception e) {
+                            // Câmera não existe no hardware atual, aciona o fantasma
+                            Method getChar = (Method) chain.getMember();
+                            getChar.setAccessible(true);
+                            result = getChar.invoke(chain.getThisObject(), fallbackId);
                         }
+                        
+                        // Marca o objeto com o ID que o app ACHOU que estava abrindo
+                        if (result != null) {
+                            charToIdMap.put(result, reqId);
+                        }
+                        return result;
                     });
                 }
             }
-        } catch (Throwable t) {
-            this.log(Log.ERROR, TAG, "MODULO: erro ao hookar CameraManager em " + packageName + " -> " + t.getMessage());
-        }
+        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraManager: " + t.getMessage()); }
+
+        // 2. HOOK NAS PROPRIEDADES (Para entregar os dados separados por lente)
+        try {
+            Class<?> charClass = Class.forName("android.hardware.camera2.CameraCharacteristics", false, targetClassLoader);
+            for (Method m : charClass.getDeclaredMethods()) {
+                if (m.getName().equals("get") && m.getParameterTypes().length == 1) {
+                    hook(m).intercept(chain -> {
+                        Object thisObj = chain.getThisObject();
+                        String camId = charToIdMap.get(thisObj); // Descobre qual câmera está sendo lida
+                        Object arg = chain.getArgs().get(0);
+
+                        if (camId != null && multiSpoofs != null && multiSpoofs.containsKey(camId) && arg instanceof CameraCharacteristics.Key) {
+                            CameraCharacteristics.Key<?> key = (CameraCharacteristics.Key<?>) arg;
+                            String keyName = key.getName();
+                            
+                            // Pega as instruções exclusivas desta câmera
+                            Map<String, Object> spoofsForThisCam = multiSpoofs.get(camId);
+
+                            if (spoofsForThisCam != null && spoofsForThisCam.containsKey(keyName)) {
+                                return spoofsForThisCam.get(keyName);
+                            }
+                        }
+                        return chain.proceed();
+                    });
+                }
+            }
+        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraCharacteristics: " + t.getMessage()); }
     }
 
     @Override
