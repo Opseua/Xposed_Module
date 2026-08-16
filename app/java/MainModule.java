@@ -38,7 +38,7 @@ public class MainModule extends XposedModule {
     private WeakHashMap<Object, String> charToIdMap = new WeakHashMap<>();
 
     @Keep
-    public void setupSpoofs(ClassLoader targetClassLoader, String packageName, Map<String, String> sysProps, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs, boolean overrideResolutions) {
+    public void setupSpoofs(ClassLoader targetClassLoader, String packageName, Map<String, String> sysProps, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs, boolean overrideResolutions, boolean hideVpn) {
         
         // ETAPAS 1 a 3: HOOK DO SYSTEM PROPERTIES (Nativo)
         try {
@@ -144,6 +144,24 @@ public class MainModule extends XposedModule {
                     }
                 }
             } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro StreamMap: " + t.getMessage()); }
+        }
+
+        // ETAPA 8: HOOK DE VPN (Oculta o uso de VPN para o App)
+        if (hideVpn) {
+            try {
+                Class<?> netCapClass = Class.forName("android.net.NetworkCapabilities", false, targetClassLoader);
+                for (Method m : netCapClass.getDeclaredMethods()) {
+                    if (m.getName().equals("hasTransport") && m.getParameterTypes().length == 1) {
+                        hook(m).intercept(chain -> {
+                            int transportType = (Integer) chain.getArgs().get(0);
+                            if (transportType == 4) { // 4 representa TRANSPORT_VPN na API do Android
+                                return false; // Mente dizendo que a rede não é uma VPN
+                            }
+                            return chain.proceed();
+                        });
+                    }
+                }
+            } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro NetworkCapabilities: " + t.getMessage()); }
         }
     }
 
