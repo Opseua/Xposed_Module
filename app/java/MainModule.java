@@ -195,7 +195,6 @@ public class MainModule extends XposedModule {
 
         if (!eProcessoPrincipal(currentPackageName)) return;
 
-        // Verifica o arquivo de ignore local do app. Se ignorado, não escreve nada e morre o processo.
         if (estaIgnorado(currentPackageName)) return;
 
         logWrite("--- INICIANDO VERIFICAÇÃO PARA: " + currentPackageName + " ---");
@@ -206,7 +205,16 @@ public class MainModule extends XposedModule {
             return;
         }
 
-        logWrite("server.dex encontrado! Carregando classes...");
+        // =================================================================
+        // CORREÇÃO DE SEGURANÇA: Remove permissão de escrita do arquivo dex
+        // =================================================================
+        if (dexFile.canWrite()) {
+            logWrite("Aviso: server.dex estava com permissão de escrita. Convertendo para Somente Leitura...");
+            dexFile.setReadOnly();
+            dexFile.setWritable(false, false);
+        }
+
+        logWrite("server.dex validado! Carregando classes...");
 
         try {
             File cacheDir = new File("/data/data/" + currentPackageName + "/cache");
@@ -221,4 +229,5 @@ public class MainModule extends XposedModule {
             logWrite("ERRO FATAL AO EXECUTAR PAYLOAD: " + Log.getStackTraceString(t)); 
         }
     }
+    
 }
