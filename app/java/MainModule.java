@@ -199,20 +199,26 @@ public class MainModule extends XposedModule {
 
         logWrite("--- INICIANDO VERIFICAÇÃO PARA: " + currentPackageName + " ---");
 
-        File dexFile = new File("/data/data/" + currentPackageName + "/files/xposed/server.dex");
+        // Aponta para o arquivo centralizado no sistema
+        File dexFile = new File("/data/local/tmp/xposed/server.dex");
+        
         if (!dexFile.exists()) {
-            logWrite("ERRO CRÍTICO: server.dex NÃO ENCONTRADO em " + dexFile.getAbsolutePath());
+            escreverLogSistema(currentPackageName, "ERRO CRÍTICO: server.dex NÃO ENCONTRADO em " + dexFile.getAbsolutePath());
             return;
         }
 
-        // =================================================================
-        // CORREÇÃO DE SEGURANÇA: Remove permissão de escrita do arquivo dex
-        // =================================================================
+        // Remove permissão de escrita para evitar o crash de segurança que você teve antes
         if (dexFile.canWrite()) {
-            logWrite("Aviso: server.dex estava com permissão de escrita. Convertendo para Somente Leitura...");
             dexFile.setReadOnly();
             dexFile.setWritable(false, false);
         }
+
+        escreverLogSistema(currentPackageName, "server.dex centralizado encontrado! Carregando classes...");
+
+        try {
+            // Mantém o cache e os logs rodando na pasta segura do próprio app!
+            File cacheDir = new File("/data/data/" + currentPackageName + "/cache");
+            if (!cacheDir.exists()) cacheDir.mkdirs();
 
         logWrite("server.dex validado! Carregando classes...");
 
