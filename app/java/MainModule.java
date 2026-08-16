@@ -3,9 +3,9 @@ package com.xposedmodule.module;
 import android.util.Log;
 import dalvik.system.DexClassLoader;
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
-import java.util.List;
 import io.github.libxposed.api.XposedModule;
 
 public class MainModule extends XposedModule {
@@ -37,7 +37,6 @@ public class MainModule extends XposedModule {
         return false;
     }
 
-    // Método exposto para o Payload realizar o hook de forma segura
     public Object hookMethodForPayload(Method method) {
         return hook(method);
     }
