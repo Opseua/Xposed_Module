@@ -37,40 +37,50 @@ public class MainModule extends XposedModule {
 
     private WeakHashMap<Object, String> charToIdMap = new WeakHashMap<>();
 
+    // Novo método com as chaves separadas
     @Keep
-    public void setupMultiCameraSpoof(ClassLoader targetClassLoader, String packageName, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs, Map<String, String> sysProps) {
+    public void setupSpoofs(ClassLoader targetClassLoader, String packageName, Map<String, String> sysProps, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs, boolean overrideResolutions) {
         
         // ETAPAS 1 a 3: HOOK DO SYSTEM PROPERTIES (Nativo)
         try {
             Class<?> sysPropsClass = Class.forName("android.os.SystemProperties", false, targetClassLoader);
             for (Method m : sysPropsClass.getDeclaredMethods()) {
-                // Intercepta qualquer variação do método get()
                 if (m.getName().equals("get") && m.getParameterTypes().length >= 1) {
                     hook(m).intercept(chain -> {
                         String key = (String) chain.getArgs().get(0);
                         if (sysProps != null && sysProps.containsKey(key)) {
-                            return sysProps.get(key); // Entrega o texto forjado (Ex: SM-S911B)
+                            return sysProps.get(key);
                         }
                         return chain.proceed();
                     });
                 }
             }
-        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro SystemProperties: " + t.getMessage()); }
+        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro SysProps: " + t.getMessage()); }
 
-        // ETAPA 4: HOOK NO CAMERA MANAGER (Quantidade de Câmeras)
+        // ETAPA 4: HOOK NO CAMERA MANAGER (Mapeamento de Fantasmas sempre roda)
         try {
             Class<?> managerClass = Class.forName("android.hardware.camera2.CameraManager", false, targetClassLoader);
             for (Method m : managerClass.getDeclaredMethods()) {
+                
+                // Forja a lista apenas se a etapa estiver ativada
                 if (m.getName().equals("getCameraIdList") && m.getParameterTypes().length == 0) {
-                    hook(m).intercept(chain -> fakeIds);
+                    hook(m).intercept(chain -> {
+                        if (fakeIds != null && fakeIds.length > 0) return fakeIds;
+                        return chain.proceed();
+                    });
                 }
                 
+                // Marca o ID da câmera na memória sempre
                 if (m.getName().equals("getCameraCharacteristics") && m.getParameterTypes().length == 1) {
                     hook(m).intercept(chain -> {
                         String reqId = (String) chain.getArgs().get(0);
-                        boolean isS23 = false;
-                        for (String id : fakeIds) { if (id.equals(reqId)) { isS23 = true; break; } }
-                        if (!isS23) throw new IllegalArgumentException("Unknown camera ID: " + reqId);
+                        
+                        // Escudo Anti-Bruteforce ativo apenas na Etapa 4
+                        if (fakeIds != null && fakeIds.length > 0) {
+                            boolean isS23 = false;
+                            for (String id : fakeIds) { if (id.equals(reqId)) { isS23 = true; break; } }
+                            if (!isS23) throw new IllegalArgumentException("Unknown camera ID: " + reqId);
+                        }
 
                         Object result;
                         try {
@@ -86,53 +96,56 @@ public class MainModule extends XposedModule {
             }
         } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraManager: " + t.getMessage()); }
 
-        // ETAPA 5 E 7: HOOK NAS PROPRIEDADES (Zoom e Restante)
-        try {
-            Class<?> charClass = Class.forName("android.hardware.camera2.CameraCharacteristics", false, targetClassLoader);
-            for (Method m : charClass.getDeclaredMethods()) {
-                if (m.getName().equals("getPhysicalCameraIds") && m.getParameterTypes().length == 0) {
-                    hook(m).intercept(chain -> new java.util.HashSet<String>());
-                }
+        // ETAPA 5 E 7: HOOK NAS PROPRIEDADES 
+        if (multiSpoofs != null && !multiSpoofs.isEmpty()) {
+            try {
+                Class<?> charClass = Class.forName("android.hardware.camera2.CameraCharacteristics", false, targetClassLoader);
+                for (Method m : charClass.getDeclaredMethods()) {
+                    if (m.getName().equals("getPhysicalCameraIds") && m.getParameterTypes().length == 0) {
+                        hook(m).intercept(chain -> new java.util.HashSet<String>());
+                    }
 
-                if (m.getName().equals("get") && m.getParameterTypes().length == 1) {
-                    hook(m).intercept(chain -> {
-                        Object thisObj = chain.getThisObject();
-                        String camId = charToIdMap.get(thisObj);
-                        Object arg = chain.getArgs().get(0);
+                    if (m.getName().equals("get") && m.getParameterTypes().length == 1) {
+                        hook(m).intercept(chain -> {
+                            Object thisObj = chain.getThisObject();
+                            String camId = charToIdMap.get(thisObj);
+                            Object arg = chain.getArgs().get(0);
 
-                        if (camId != null && multiSpoofs != null && multiSpoofs.containsKey(camId) && arg instanceof CameraCharacteristics.Key) {
-                            CameraCharacteristics.Key<?> key = (CameraCharacteristics.Key<?>) arg;
-                            String keyName = key.getName();
-                            
-                            Map<String, Object> spoofsForThisCam = multiSpoofs.get(camId);
-                            if (spoofsForThisCam != null && spoofsForThisCam.containsKey(keyName)) {
-                                return spoofsForThisCam.get(keyName);
+                            if (camId != null && multiSpoofs.containsKey(camId) && arg instanceof CameraCharacteristics.Key) {
+                                CameraCharacteristics.Key<?> key = (CameraCharacteristics.Key<?>) arg;
+                                String keyName = key.getName();
+                                
+                                Map<String, Object> spoofsForThisCam = multiSpoofs.get(camId);
+                                if (spoofsForThisCam != null && spoofsForThisCam.containsKey(keyName)) {
+                                    return spoofsForThisCam.get(keyName);
+                                }
                             }
-                        }
-                        return chain.proceed();
-                    });
+                            return chain.proceed();
+                        });
+                    }
                 }
-            }
-        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraCharacteristics: " + t.getMessage()); }
+            } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraCharacteristics: " + t.getMessage()); }
+        }
 
-        // ETAPA 6: HOOK DE RESOLUÇÕES (StreamConfigurationMap)
-        try {
-            Class<?> streamMapClass = Class.forName("android.hardware.camera2.params.StreamConfigurationMap", false, targetClassLoader);
-            for (Method m : streamMapClass.getDeclaredMethods()) {
-                if (m.getName().equals("getOutputSizes") && m.getParameterTypes().length == 1) {
-                    hook(m).intercept(chain -> {
-                        Object original = chain.proceed();
-                        if (original == null) return null; // Previne crash se o formato não existir
-                        
-                        return new android.util.Size[] {
-                            new android.util.Size(4080, 3060), new android.util.Size(4000, 3000), 
-                            new android.util.Size(3840, 2160), new android.util.Size(2560, 1440),
-                            new android.util.Size(1920, 1080), new android.util.Size(1280, 720), new android.util.Size(640, 480)
-                        };
-                    });
+        // ETAPA 6: HOOK DE RESOLUÇÕES 
+        if (overrideResolutions) {
+            try {
+                Class<?> streamMapClass = Class.forName("android.hardware.camera2.params.StreamConfigurationMap", false, targetClassLoader);
+                for (Method m : streamMapClass.getDeclaredMethods()) {
+                    if (m.getName().equals("getOutputSizes") && m.getParameterTypes().length == 1) {
+                        hook(m).intercept(chain -> {
+                            Object original = chain.proceed();
+                            if (original == null) return null; // Evita NullPointerException em formatos nativos não suportados
+                            return new android.util.Size[] {
+                                new android.util.Size(4080, 3060), new android.util.Size(4000, 3000), 
+                                new android.util.Size(3840, 2160), new android.util.Size(2560, 1440),
+                                new android.util.Size(1920, 1080), new android.util.Size(1280, 720), new android.util.Size(640, 480)
+                            };
+                        });
+                    }
                 }
-            }
-        } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro StreamMap: " + t.getMessage()); }
+            } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro StreamMap: " + t.getMessage()); }
+        }
     }
 
     @Override
