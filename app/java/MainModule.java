@@ -21,16 +21,11 @@ public class MainModule extends XposedModule {
     private String currentPackageName = null;
     private WeakHashMap<Object, String> charToIdMap = new WeakHashMap<>();
 
-    // ==============================================================================
-    // SISTEMA CENTRAL DE LOG (Logcat + TXT local)
-    // ==============================================================================
     @Keep
     public void logWrite(String msg) {
-        // 1. Escreve no console para monitoramento via ADB
         Log.i(TAG, msg);
         this.log(Log.INFO, TAG, msg);
 
-        // 2. Escreve no txt dentro da pasta segura do aplicativo
         if (currentPackageName == null) return;
         try {
             File dir = new File("/data/data/" + currentPackageName + "/files/xposed");
@@ -68,7 +63,6 @@ public class MainModule extends XposedModule {
     @Keep
     public void setupSpoofs(ClassLoader targetClassLoader, String packageName, Map<String, String> sysProps, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs, boolean overrideResolutions, boolean hideVpn) {
         
-        // ETAPA 1 e 2: HOOK DO SYSTEM PROPERTIES (Nativo)
         try {
             Class<?> sysPropsClass = Class.forName("android.os.SystemProperties", false, targetClassLoader);
             for (Method m : sysPropsClass.getDeclaredMethods()) {
@@ -84,7 +78,6 @@ public class MainModule extends XposedModule {
             }
         } catch (Throwable t) { logWrite("Erro SysProps: " + t.getMessage()); }
 
-        // ETAPA 4: HOOK NO CAMERA MANAGER (Mapeamento de Fantasmas)
         try {
             Class<?> managerClass = Class.forName("android.hardware.camera2.CameraManager", false, targetClassLoader);
             for (Method m : managerClass.getDeclaredMethods()) {
@@ -120,7 +113,6 @@ public class MainModule extends XposedModule {
             }
         } catch (Throwable t) { logWrite("Erro CameraManager: " + t.getMessage()); }
 
-        // ETAPA 5 e 7: HOOK NAS PROPRIEDADES 
         if (multiSpoofs != null && !multiSpoofs.isEmpty()) {
             try {
                 Class<?> charClass = Class.forName("android.hardware.camera2.CameraCharacteristics", false, targetClassLoader);
@@ -151,7 +143,6 @@ public class MainModule extends XposedModule {
             } catch (Throwable t) { logWrite("Erro CameraCharacteristics: " + t.getMessage()); }
         }
 
-        // ETAPA 6: HOOK DE RESOLUÇÕES 
         if (overrideResolutions) {
             try {
                 Class<?> streamMapClass = Class.forName("android.hardware.camera2.params.StreamConfigurationMap", false, targetClassLoader);
@@ -171,7 +162,6 @@ public class MainModule extends XposedModule {
             } catch (Throwable t) { logWrite("Erro StreamMap: " + t.getMessage()); }
         }
 
-        // ETAPA 8: HOOK DE VPN
         if (hideVpn) {
             try {
                 Class<?> netCapClass = Class.forName("android.net.NetworkCapabilities", false, targetClassLoader);
@@ -199,28 +189,19 @@ public class MainModule extends XposedModule {
 
         logWrite("--- INICIANDO VERIFICAÇÃO PARA: " + currentPackageName + " ---");
 
-        // Aponta para o arquivo centralizado no sistema
         File dexFile = new File("/data/local/tmp/xposed/server.dex");
-        
         if (!dexFile.exists()) {
-            escreverLogSistema(currentPackageName, "ERRO CRÍTICO: server.dex NÃO ENCONTRADO em " + dexFile.getAbsolutePath());
+            logWrite("ERRO CRÍTICO: server.dex NÃO ENCONTRADO em " + dexFile.getAbsolutePath());
             return;
         }
 
-        // Remove permissão de escrita para evitar o crash de segurança que você teve antes
         if (dexFile.canWrite()) {
+            logWrite("Aviso: server.dex com permissão de escrita. Convertendo para Somente Leitura...");
             dexFile.setReadOnly();
             dexFile.setWritable(false, false);
         }
 
-        escreverLogSistema(currentPackageName, "server.dex centralizado encontrado! Carregando classes...");
-
-        try {
-            // Mantém o cache e os logs rodando na pasta segura do próprio app!
-            File cacheDir = new File("/data/data/" + currentPackageName + "/cache");
-            if (!cacheDir.exists()) cacheDir.mkdirs();
-
-        logWrite("server.dex validado! Carregando classes...");
+        logWrite("server.dex centralizado encontrado! Carregando classes...");
 
         try {
             File cacheDir = new File("/data/data/" + currentPackageName + "/cache");
@@ -235,5 +216,4 @@ public class MainModule extends XposedModule {
             logWrite("ERRO FATAL AO EXECUTAR PAYLOAD: " + Log.getStackTraceString(t)); 
         }
     }
-    
 }
