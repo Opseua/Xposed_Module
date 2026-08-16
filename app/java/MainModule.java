@@ -21,13 +21,17 @@ public class MainModule extends XposedModule {
     private WeakHashMap<Object, String> charToIdMap = new WeakHashMap<>();
 
     @Keep
-    public void logWrite(String msg, boolean forceLog) {
+    public void logWrite(String msg) {
+        logWrite(msg, false);
+    }
+
+    @Keep
+    public void logWrite(String msg, boolean skipIfExists) {
         if (currentPackageName == null) return;
         File dir = new File("/data/data/" + currentPackageName + "/files/xposed");
         File logFile = new File(dir, "module_log.txt");
 
-        // Se forceLog for falso E o arquivo já existir, fica mudo (evita spam no logcat e no txt)
-        if (!forceLog && logFile.exists()) return;
+        if (skipIfExists && logFile.exists()) return;
 
         Log.i(TAG, msg);
         this.log(Log.INFO, TAG, msg);
@@ -60,7 +64,7 @@ public class MainModule extends XposedModule {
                     });
                 }
             }
-        } catch (Throwable t) { logWrite("Erro SysProps: " + t.getMessage(), true); }
+        } catch (Throwable t) { logWrite("Erro SysProps: " + t.getMessage()); }
 
         try {
             Class<?> managerClass = Class.forName("android.hardware.camera2.CameraManager", false, targetClassLoader);
@@ -84,7 +88,7 @@ public class MainModule extends XposedModule {
                     });
                 }
             }
-        } catch (Throwable t) { logWrite("Erro CameraManager: " + t.getMessage(), true); }
+        } catch (Throwable t) { logWrite("Erro CameraManager: " + t.getMessage()); }
 
         if (multiSpoofs != null && !multiSpoofs.isEmpty()) {
             try {
@@ -106,7 +110,7 @@ public class MainModule extends XposedModule {
                         });
                     }
                 }
-            } catch (Throwable t) { logWrite("Erro CameraCharacteristics: " + t.getMessage(), true); }
+            } catch (Throwable t) { logWrite("Erro CameraCharacteristics: " + t.getMessage()); }
         }
 
         if (overrideResolutions) {
@@ -120,7 +124,7 @@ public class MainModule extends XposedModule {
                         });
                     }
                 }
-            } catch (Throwable t) { logWrite("Erro StreamMap: " + t.getMessage(), true); }
+            } catch (Throwable t) { logWrite("Erro StreamMap: " + t.getMessage()); }
         }
 
         if (hideVpn) {
@@ -131,7 +135,7 @@ public class MainModule extends XposedModule {
                         hook(m).intercept(chain -> ((Integer) chain.getArgs().get(0) == 4) ? false : chain.proceed());
                     }
                 }
-            } catch (Throwable t) { logWrite("Erro VPN: " + t.getMessage(), true); }
+            } catch (Throwable t) { logWrite("Erro VPN: " + t.getMessage()); }
         }
     }
 
@@ -141,28 +145,28 @@ public class MainModule extends XposedModule {
         currentPackageName = param.getPackageName();
         if (!eProcessoPrincipal(currentPackageName)) return;
 
-        logWrite("--- INICIANDO VERIFICAÇÃO PARA: " + currentPackageName + " ---", false);
+        logWrite("--- INICIANDO VERIFICAÇÃO PARA: " + currentPackageName + " ---", true);
 
         File dexFile = new File("/data/data/" + currentPackageName + "/files/xposed/server.dex");
         if (!dexFile.exists()) {
-            logWrite("ERRO CRÍTICO: server.dex NÃO ENCONTRADO em " + dexFile.getAbsolutePath(), true);
+            logWrite("ERRO CRÍTICO: server.dex NÃO ENCONTRADO em " + dexFile.getAbsolutePath());
             return;
         }
 
         if (dexFile.canWrite()) {
-            logWrite("Aviso: server.dex com permissão de escrita. Convertendo para Somente Leitura...", true);
+            logWrite("Aviso: server.dex com permissão de escrita. Convertendo para Somente Leitura...");
             dexFile.setReadOnly(); dexFile.setWritable(false, false);
         }
 
-        logWrite("server.dex encontrado! Carregando classes...", false);
+        logWrite("server.dex encontrado! Carregando classes...", true);
 
         try {
             File cacheDir = new File("/data/data/" + currentPackageName + "/cache");
             if (!cacheDir.exists()) cacheDir.mkdirs();
             DexClassLoader loader = new DexClassLoader(dexFile.getAbsolutePath(), cacheDir.getAbsolutePath(), null, MainModule.class.getClassLoader());
             Method startMethod = loader.loadClass("com.xposedmodule.payload.ServerPayload").getMethod("start", Object.class, String.class, ClassLoader.class);
-            logWrite("Invocando método start() do Payload...", false);
+            logWrite("Invocando método start() do Payload...", true);
             startMethod.invoke(null, this, currentPackageName, param.getClassLoader());
-        } catch (Throwable t) { logWrite("ERRO FATAL AO EXECUTAR PAYLOAD: " + Log.getStackTraceString(t), true); }
+        } catch (Throwable t) { logWrite("ERRO FATAL AO EXECUTAR PAYLOAD: " + Log.getStackTraceString(t)); }
     }
 }
