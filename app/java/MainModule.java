@@ -2,13 +2,11 @@ package com.xposedmodule.module;
 
 import android.hardware.camera2.CameraCharacteristics;
 import android.util.Log;
-import android.util.Size;
 import dalvik.system.DexClassLoader;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.WeakHashMap;
 import io.github.libxposed.api.XposedModule;
@@ -39,7 +37,6 @@ public class MainModule extends XposedModule {
 
     private WeakHashMap<Object, String> charToIdMap = new WeakHashMap<>();
 
-    // Adicionado parâmetro 'sysProps' no final
     @Keep
     public void setupMultiCameraSpoof(ClassLoader targetClassLoader, String packageName, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs, Map<String, String> sysProps) {
         
@@ -55,7 +52,7 @@ public class MainModule extends XposedModule {
                     hook(m).intercept(chain -> {
                         String reqId = (String) chain.getArgs().get(0);
                         
-                        // ESCUDO ANTI-BRUTEFORCE: Se o app pedir uma câmera que não está na lista do S23, forçamos um erro
+                        // ESCUDO ANTI-BRUTEFORCE
                         boolean isS23 = false;
                         for (String id : fakeIds) { if (id.equals(reqId)) { isS23 = true; break; } }
                         if (!isS23) throw new IllegalArgumentException("Unknown camera ID: " + reqId);
@@ -117,7 +114,7 @@ public class MainModule extends XposedModule {
             }
         } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro StreamMap: " + t.getMessage()); }
 
-        // 4. HOOK DO SYSTEM PROPERTIES (Para forjar o Meta de forma profunda)
+        // 4. HOOK DO SYSTEM PROPERTIES
         try {
             Class<?> sysPropsClass = Class.forName("android.os.SystemProperties", false, targetClassLoader);
             for (Method m : sysPropsClass.getDeclaredMethods()) {
@@ -125,7 +122,7 @@ public class MainModule extends XposedModule {
                     hook(m).intercept(chain -> {
                         String key = (String) chain.getArgs().get(0);
                         if (sysProps != null && sysProps.containsKey(key)) {
-                            return sysProps.get(key); // Entrega o valor forjado
+                            return sysProps.get(key);
                         }
                         return chain.proceed();
                     });
