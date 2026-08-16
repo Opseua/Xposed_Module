@@ -10,6 +10,7 @@ import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Map;
 import io.github.libxposed.api.XposedModule;
+import androidx.annotation.Keep;
 
 public class MainModule extends XposedModule {
     private static final String TAG = "MODULO_LOADER";
@@ -41,6 +42,7 @@ public class MainModule extends XposedModule {
     }
 
     // Agora o método é genérico e aceita um mapa inteiro com as instruções de spoof
+    @Keep // Impede que o R8 renomeie este método
     public void hookCameraCharacteristics(ClassLoader targetClassLoader, String packageName, Map<String, Object> spoofMap) {
         try {
             Class<?> cameraCharacteristicsClass = Class.forName(
