@@ -65,10 +65,9 @@ public class MainModule extends XposedModule {
                             result = chain.proceed();
                         } catch (Exception e) {
                             // Câmera não existe no hardware atual, aciona o fantasma
-                            // CORREÇÃO AQUI: getMethod() em vez de getMember()
-                            Method getChar = chain.getMethod(); 
-                            getChar.setAccessible(true);
-                            result = getChar.invoke(chain.getThisObject(), fallbackId);
+                            // SOLUÇÃO: Usamos o 'm' diretamente do loop for!
+                            m.setAccessible(true);
+                            result = m.invoke(chain.getThisObject(), fallbackId);
                         }
                         
                         // Marca o objeto com o ID que o app ACHOU que estava abrindo
