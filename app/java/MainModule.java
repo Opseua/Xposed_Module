@@ -40,7 +40,7 @@ public class MainModule extends XposedModule {
     @Keep
     public void setupSpoofs(ClassLoader targetClassLoader, String packageName, Map<String, String> sysProps, String[] fakeIds, String fallbackId, Map<String, Map<String, Object>> multiSpoofs, boolean overrideResolutions, boolean hideVpn) {
         
-        // ETAPAS 1 a 3: HOOK DO SYSTEM PROPERTIES (Nativo)
+        // ETAPA 1 e 2: HOOK DO SYSTEM PROPERTIES (Nativo)
         try {
             Class<?> sysPropsClass = Class.forName("android.os.SystemProperties", false, targetClassLoader);
             for (Method m : sysPropsClass.getDeclaredMethods()) {
@@ -56,12 +56,11 @@ public class MainModule extends XposedModule {
             }
         } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro SysProps: " + t.getMessage()); }
 
-        // ETAPA 4: HOOK NO CAMERA MANAGER (Mapeamento de Fantasmas sempre roda)
+        // ETAPA 4: HOOK NO CAMERA MANAGER (Mapeamento de Fantasmas)
         try {
             Class<?> managerClass = Class.forName("android.hardware.camera2.CameraManager", false, targetClassLoader);
             for (Method m : managerClass.getDeclaredMethods()) {
                 
-                // Forja a lista apenas se a etapa estiver ativada
                 if (m.getName().equals("getCameraIdList") && m.getParameterTypes().length == 0) {
                     hook(m).intercept(chain -> {
                         if (fakeIds != null && fakeIds.length > 0) return fakeIds;
@@ -69,12 +68,11 @@ public class MainModule extends XposedModule {
                     });
                 }
                 
-                // Marca o ID da câmera na memória sempre
                 if (m.getName().equals("getCameraCharacteristics") && m.getParameterTypes().length == 1) {
                     hook(m).intercept(chain -> {
                         String reqId = (String) chain.getArgs().get(0);
                         
-                        // Escudo Anti-Bruteforce ativo apenas na Etapa 4
+                        // Escudo Anti-Bruteforce
                         if (fakeIds != null && fakeIds.length > 0) {
                             boolean isS23 = false;
                             for (String id : fakeIds) { if (id.equals(reqId)) { isS23 = true; break; } }
@@ -95,7 +93,7 @@ public class MainModule extends XposedModule {
             }
         } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraManager: " + t.getMessage()); }
 
-        // ETAPA 5 E 7: HOOK NAS PROPRIEDADES 
+        // ETAPA 5 e 7: HOOK NAS PROPRIEDADES 
         if (multiSpoofs != null && !multiSpoofs.isEmpty()) {
             try {
                 Class<?> charClass = Class.forName("android.hardware.camera2.CameraCharacteristics", false, targetClassLoader);
@@ -134,7 +132,7 @@ public class MainModule extends XposedModule {
                     if (m.getName().equals("getOutputSizes") && m.getParameterTypes().length == 1) {
                         hook(m).intercept(chain -> {
                             Object original = chain.proceed();
-                            if (original == null) return null; // Evita NullPointerException em formatos nativos não suportados
+                            if (original == null) return null; 
                             return new android.util.Size[] {
                                 new android.util.Size(4080, 3060), new android.util.Size(4000, 3000), 
                                 new android.util.Size(3840, 2160), new android.util.Size(2560, 1440),
@@ -146,7 +144,7 @@ public class MainModule extends XposedModule {
             } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro StreamMap: " + t.getMessage()); }
         }
 
-        // ETAPA 8: HOOK DE VPN (Oculta o uso de VPN para o App)
+        // ETAPA 8: HOOK DE VPN
         if (hideVpn) {
             try {
                 Class<?> netCapClass = Class.forName("android.net.NetworkCapabilities", false, targetClassLoader);
@@ -154,9 +152,7 @@ public class MainModule extends XposedModule {
                     if (m.getName().equals("hasTransport") && m.getParameterTypes().length == 1) {
                         hook(m).intercept(chain -> {
                             int transportType = (Integer) chain.getArgs().get(0);
-                            if (transportType == 4) { // 4 representa TRANSPORT_VPN na API do Android
-                                return false; // Mente dizendo que a rede não é uma VPN
-                            }
+                            if (transportType == 4) return false; 
                             return chain.proceed();
                         });
                     }
