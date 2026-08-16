@@ -2,14 +2,13 @@ package com.xposedmodule.module;
 
 import android.hardware.camera2.CameraCharacteristics;
 import android.util.Log;
-import android.util.Range;
-import android.util.SizeF;
 import dalvik.system.DexClassLoader;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.Map;
 import io.github.libxposed.api.XposedModule;
 
 public class MainModule extends XposedModule {
@@ -41,8 +40,8 @@ public class MainModule extends XposedModule {
         return false;
     }
 
-    // Método que ativa o hook da câmera usando nativamente a API do libxposed
-    public void hookCameraCharacteristics(ClassLoader targetClassLoader, String packageName) {
+    // Agora o método é genérico e aceita um mapa inteiro com as instruções de spoof
+    public void hookCameraCharacteristics(ClassLoader targetClassLoader, String packageName, Map<String, Object> spoofMap) {
         try {
             Class<?> cameraCharacteristicsClass = Class.forName(
                     "android.hardware.camera2.CameraCharacteristics",
@@ -59,48 +58,20 @@ public class MainModule extends XposedModule {
                             CameraCharacteristics.Key<?> key = (CameraCharacteristics.Key<?>) arg;
                             String keyName = key.getName();
                             
-                            Object result = chain.proceed();
-                            
-                            if ("android.sensor.info.physicalSize".equals(keyName)) {
-                                SizeF spoof = new SizeF(7.6f, 5.7f);
-                                this.log(Log.INFO, TAG, "CAMERA: " + keyName + " -> " + spoof);
-                                return spoof;
-                            }
-                            
-                            if ("android.lens.info.availableFocalLengths".equals(keyName)) {
-                                float[] spoof = new float[] { 1.5f };
-                                this.log(Log.INFO, TAG, "CAMERA: " + keyName + " -> " + Arrays.toString(spoof));
-                                return spoof;
-                            }
+                            // Se a chave solicitada existir no nosso mapa injetado, retornamos o valor forjado
+                            if (spoofMap != null && spoofMap.containsKey(keyName)) {
+                                Object spoof = spoofMap.get(keyName);
+                                
+                                // Tratamento apenas para o log ficar legível caso seja Array
+                                String logValue;
+                                if (spoof instanceof int[]) logValue = Arrays.toString((int[]) spoof);
+                                else if (spoof instanceof float[]) logValue = Arrays.toString((float[]) spoof);
+                                else if (spoof instanceof Object[]) logValue = Arrays.toString((Object[]) spoof);
+                                else logValue = String.valueOf(spoof);
 
-                            if ("android.sensor.info.timestampSource".equals(keyName)) {
-                                Integer spoof = 1;
-                                this.log(Log.INFO, TAG, "CAMERA: " + keyName + " -> " + spoof);
+                                this.log(Log.INFO, TAG, "CAMERA: " + keyName + " -> " + logValue);
                                 return spoof;
                             }
-
-                            if ("android.control.zoomRatioRange".equals(keyName)) {
-                                Range<Float> spoof = new Range<>(0.5f, 10.0f);
-                                this.log(Log.INFO, TAG, "CAMERA: " + keyName + " -> " + spoof);
-                                return spoof;
-                            }
-                            
-                            if ("android.request.availableCapabilities".equals(keyName)) {
-                                int[] spoof = new int[] {0, 1, 2, 3, 4, 5, 6, 8, 9, 11};
-                                this.log(Log.INFO, TAG, "CAMERA: " + keyName + " -> " + Arrays.toString(spoof));
-                                return spoof;
-                            }
-                            
-                            if ("android.control.aeAvailableTargetFpsRanges".equals(keyName)) {
-                                @SuppressWarnings("unchecked")
-                                Range<Integer>[] spoof = new Range[] {
-                                    new Range<>(15, 30), new Range<>(30, 30)
-                                };
-                                this.log(Log.INFO, TAG, "CAMERA: " + keyName + " -> " + Arrays.toString(spoof));
-                                return spoof;
-                            }
-
-                            return result;
                         }
 
                         return chain.proceed();
