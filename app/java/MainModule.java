@@ -100,15 +100,25 @@ public class MainModule extends XposedModule {
             }
         } catch (Throwable t) { this.log(Log.ERROR, TAG, "Erro CameraCharacteristics: " + t.getMessage()); }
 
-        // 3. HOOK DE RESOLUÇÕES (StreamConfigurationMap)
+    // 3. HOOK DE RESOLUÇÕES (StreamConfigurationMap)
         try {
             Class<?> streamMapClass = Class.forName("android.hardware.camera2.params.StreamConfigurationMap", false, targetClassLoader);
             for (Method m : streamMapClass.getDeclaredMethods()) {
                 if (m.getName().equals("getOutputSizes") && m.getParameterTypes().length == 1) {
-                    hook(m).intercept(chain -> new android.util.Size[] {
-                        new android.util.Size(4080, 3060), new android.util.Size(4000, 3000), 
-                        new android.util.Size(3840, 2160), new android.util.Size(2560, 1440),
-                        new android.util.Size(1920, 1080), new android.util.Size(1280, 720), new android.util.Size(640, 480)
+                    hook(m).intercept(chain -> {
+                        Object original = chain.proceed();
+                        
+                        // Se o formato nativo não for suportado, a documentação exige que retorne null.
+                        // Forçar um array aqui causa NullPointerException na lógica interna do app.
+                        if (original == null) {
+                            return null;
+                        }
+                        
+                        return new android.util.Size[] {
+                            new android.util.Size(4080, 3060), new android.util.Size(4000, 3000), 
+                            new android.util.Size(3840, 2160), new android.util.Size(2560, 1440),
+                            new android.util.Size(1920, 1080), new android.util.Size(1280, 720), new android.util.Size(640, 480)
+                        };
                     });
                 }
             }
